@@ -1,8 +1,8 @@
 const express = require("express")
 const router = express.Router()
-const {createUser, getUsers, 
+const { createUser, getUsers,
     getOneUser, updateOneUser,
-    deleteOneUser} = require("../../controllers/admin/usermanagement")
+    deleteOneUser } = require("../../controllers/admin/usermanagement")
 const { authenticateUser, isAdmin } = require("../../middlewares/authorizedUser")
 
 router.post(
@@ -33,5 +33,3 @@ router.delete(
 )
 
 module.exports = router
-// This route handles user management for admin users
-// It includes routes for creating, reading, updating, and deleting users

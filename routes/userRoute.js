@@ -12,6 +12,6 @@ router.post(
     loginUser
 )
 
-router.get("/user/:id", getUserById);
+// router.get("/user/:id", getUserById);
 
 module.exports = router
