@@ -120,15 +120,16 @@ exports.registerUser = async (req, res) => {
         // Create new instance of user
         const newUser = new User(
             {
-                email,
+                email : email,
                 fullName: fullName,
                 password: hashedPassword
             }
         )
         // Save the user data
         await newUser.save()
-        return res.status(201).json({ "success": true, "message": "User registered" })
+        return res.status(201).json({ "success": true, "message": "User registered" , data : newUser })
     } catch (e) {
+        console.log(e)
         return res.status(500).json(
             {
                 "success": false,
