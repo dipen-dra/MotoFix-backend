@@ -45,48 +45,116 @@ exports.registerUser = async (req, res) => {
     }
 }
 
+// exports.loginUser = async (req, res) => {
+//     const { email, password } = req.body
+//     // validation
+//     if (!email || !password) {
+//         return res.status(400).json(
+//             { "success": false, "message": "Missing Field" }
+//         )
+//     }
+//     try {
+//         const getUser = await User.findOne(
+//             { "email": email }
+//         )
+//         if (!getUser) {
+//             return res.status(400).json(
+//                 { "success": false, "message": "User not found" }
+//             )
+//         }
+//         // check for password
+//         const passwordCheck = await bcrypt.compare(password, getUser.password) 
+//         if(!passwordCheck){
+//             return res.status(400).json(
+//                 { "success": false, "message": "Invalid Credentials" }
+//             )
+//         }
+//         // jwt 
+//         const payload = {
+//             "_id": getUser._id,
+//             "email": getUser.email,
+//             "fullName": getUser.fullName
+//         }
+//         const token = jwt.sign(payload, process.env.SECRET, {expiresIn: '7d'})
+//         return res.status(200).json(
+//             {
+//                 "success": true,
+//                 "message": "Login successful",
+//                 "data": getUser,
+//                 "token": token
+//             }
+//         )
+//     } catch (err) {
+//         return res.status(500).json(
+//             { "success": false, "message": "Server Error" }
+//         )
+//     }
+// }
+
+
+
 exports.loginUser = async (req, res) => {
-    const { email, password } = req.body
-    // validation
+    const { email, password } = req.body;
+
+    // 1. Validation: Check if email and password are provided
     if (!email || !password) {
-        return res.status(400).json(
-            { "success": false, "message": "Missing Field" }
-        )
+        return res.status(400).json({
+            "success": false,
+            "message": "Missing Field"
+        });
     }
+
     try {
-        const getUser = await User.findOne(
-            { "email": email }
-        )
+        // 2. Find User: Look for the user by their email address
+        const getUser = await User.findOne({ "email": email });
+
+        // 3. Handle User Not Found: If no user, return 404
         if (!getUser) {
-            return res.status(400).json(
-                { "success": false, "message": "User not found" }
-            )
+            // UPDATED: Changed status from 400 to 404 for clarity on the frontend
+            return res.status(404).json({
+                "success": false,
+                "message": "User not found"
+            });
         }
-        // check for password
-        const passwordCheck = await bcrypt.compare(password, getUser.password) 
-        if(!passwordCheck){
-            return res.status(400).json(
-                { "success": false, "message": "Invalid Credentials" }
-            )
+
+        // 4. Compare Passwords: Check if the provided password is correct
+        const passwordCheck = await bcrypt.compare(password, getUser.password);
+        if (!passwordCheck) {
+            // Return 400 for invalid password
+            return res.status(400).json({
+                "success": false,
+                "message": "Invalid Credentials"
+            });
         }
-        // jwt 
+
+        // 5. Create JWT Payload
         const payload = {
             "_id": getUser._id,
             "email": getUser.email,
             "fullName": getUser.fullName
-        }
-        const token = jwt.sign(payload, process.env.SECRET, {expiresIn: '7d'})
-        return res.status(200).json(
-            {
-                "success": true,
-                "message": "Login successful",
-                "data": getUser,
-                "token": token
-            }
-        )
+        };
+
+        // 6. Sign Token
+        const token = jwt.sign(payload, process.env.SECRET, { expiresIn: '7d' });
+
+        // 7. Send Success Response
+        return res.status(200).json({
+            "success": true,
+            "message": "Login successful",
+            "data": {
+                // It's good practice to not send the password hash back
+                _id: getUser._id,
+                email: getUser.email,
+                fullName: getUser.fullName
+            },
+            "token": token
+        });
+
     } catch (err) {
-        return res.status(500).json(
-            { "success": false, "message": "Server Error" }
-        )
+        console.log(err); // Log the error for debugging
+        return res.status(500).json({
+            "success": false,
+            "message": "Server Error"
+        });
     }
-}
+};
