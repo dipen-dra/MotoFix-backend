@@ -107,7 +107,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // --- API Routes ---
 
 // Authentication Routes (for both user and admin login/registration)
-app.use('/api', require('./routes/userRoute')); // This handles /api/register, /api/login
+app.use('/api/auth', require('./routes/userRoute')); // This handles /api/register, /api/login
 
 // Admin Routes
 app.use('/api/admin/users', require('./routes/admin/adminUserRoute'));
