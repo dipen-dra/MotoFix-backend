@@ -1,185 +1,196 @@
-// CRUD
-const User = require("../../models/User")
-const bcrypt = require("bcrypt")
 
-// Create
+
+// const User = require("../../models/User");
+
+// // This function was provided in a previous step but is included here for completeness.
+// module.exports.createUser = async (req, res) => {
+//     // ... implementation for creating a user
+// };
+
+// module.exports.getUsers = async (req, res) => {
+//     try {
+//         const users = await User.find().select('-password');
+//         res.status(200).json({ success: true, data: users });
+//     } catch (error) {
+//         res.status(500).json({ success: false, message: 'Server error' });
+//     }
+// };
+
+// module.exports.getOneUser = async (req, res) => {
+//     // ... implementation
+// };
+
+// module.exports.updateOneUser = async (req, res) => {
+//     // ... implementation
+// };
+
+// module.exports.deleteOneUser = async (req, res) => {
+//     // ... implementation
+// };
+
+// // Function to promote a user to admin
+// module.exports.promoteUserToAdmin = async (req, res) => {
+//     try {
+//         const user = await User.findById(req.params.id);
+//         if (!user) {
+//             return res.status(404).json({ success: false, message: "User not found" });
+//         }
+
+//         user.role = 'admin';
+//         await user.save();
+
+//         const { password, ...userData } = user.toObject();
+
+//         return res.status(200).json({ 
+//             success: true, 
+//             message: `User ${user.fullName} has been promoted to admin.`,
+//             data: userData
+//         });
+
+//     } catch (error) {
+//         console.error("Promote user error:", error);
+//         return res.status(500).json({ success: false, message: "Server error" });
+//     }
+// };
+
+
+
+const User = require("../../models/User");
+const bcrypt = require("bcrypt");
+
+// Create a new user
 exports.createUser = async (req, res) => {
-    const { fullName, email, password } = req.body
-    
-    // validation
+    const { fullName, email, password, role } = req.body;
+
     if (!fullName || !email || !password) {
-        return res.status(403).json({
+        return res.status(400).json({
             success: false,
-            message: "Please fill all the fields"
-        })
+            message: "Please provide full name, email, and password."
+        });
     }
-    
+
     try {
-        const existingUser = await User.findOne({ email })
+        const existingUser = await User.findOne({ email });
         if (existingUser) {
-            return res.status(400).json({ 
-                success: false, 
-                message: "User already exists" 
-            })
+            return res.status(400).json({
+                success: false,
+                message: "User with this email already exists."
+            });
         }
-        
-        // Hash the password
-        const hashedPassword = await bcrypt.hash(password, 10)
-        
-        // Create new instance of user
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
         const newUser = new User({
             fullName,
             email,
-            password: hashedPassword
-        })
-        
-        // Save the user data
-        await newUser.save()
-        return res.status(201).json({ 
-            success: true, 
-            message: "User registered" 
-        })
-        
-    } catch (err) {
-        console.error("Create user error:", err);
-        return res.status(500).json({
-            success: false,
-            message: "Server error"
-        })
-    }
-}
+            password: hashedPassword,
+            role: role || 'normal'
+        });
 
-// Read All
+        await newUser.save();
+        const { password: _, ...userWithoutPassword } = newUser.toObject();
+
+        res.status(201).json({
+            success: true,
+            message: "User created successfully.",
+            data: userWithoutPassword
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Server error during user creation.",
+            error: error.message
+        });
+    }
+};
+
+// Get all users
 exports.getUsers = async (req, res) => {
     try {
-        console.log(req.user)
-        const users = await User.find().select("-password"); // exclude passwords
-        return res.status(200).json({
+        const users = await User.find().select("-password");
+        res.status(200).json({
             success: true,
-            message: "Data fetched",
+            message: "Users fetched successfully.",
             data: users
-        })
-    } catch (err) {
-        console.error("Get users error:", err);
-        return res.status(500).json({
+        });
+    } catch (error) {
+        res.status(500).json({
             success: false,
-            message: "Server error"
-        })
+            message: "Server error while fetching users.",
+            error: error.message
+        });
     }
-}
+};
 
-// Read one
+// Get a single user by ID
 exports.getOneUser = async (req, res) => {
     try {
-        const _id = req.params.id
-        const user = await User.findById(_id).select("-password"); // exclude password
-        
+        const user = await User.findById(req.params.id).select("-password");
         if (!user) {
-            return res.status(404).json({
-                success: false,
-                message: "User not found"
-            });
+            return res.status(404).json({ success: false, message: "User not found." });
         }
-        
-        return res.status(200).json({
-            success: true,
-            message: "One user fetched",
-            data: user
-        })
-    } catch (err) {
-        console.error("Get one user error:", err);
-        return res.status(500).json({
-            success: false,
-            message: "Server error"
-        })
+        res.status(200).json({ success: true, data: user });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Server error.", error: error.message });
     }
-}
+};
 
-// Update
+// Update a user
 exports.updateOneUser = async (req, res) => {
-    const { fullName, email } = req.body
-    const _id = req.params.id
-    
-    // Basic validation
-    if (!fullName && !email) {
-        return res.status(400).json({
-            success: false,
-            message: "At least one field is required to update"
-        })
-    }
-    
     try {
-        // Check if user exists
-        const existingUser = await User.findById(_id);
-        if (!existingUser) {
-            return res.status(404).json({
-                success: false,
-                message: "User not found"
-            });
-        }
-        
-        // If email is being updated, check for duplicates
-        if (email && email !== existingUser.email) {
-            const emailExists = await User.findOne({ 
-                email: email, 
-                _id: { $ne: _id } 
-            });
-            if (emailExists) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Email already exists"
-                });
-            }
-        }
-        
-        // Build update object
-        const updateFields = {};
-        if (fullName) updateFields.fullName = fullName;
-        if (email) updateFields.email = email;
-        
-        await User.updateOne(
-            { _id: _id },
-            { $set: updateFields }
-        )
-        
-        return res.status(200).json({
-            success: true,
-            message: "User data updated"
-        })
-        
-    } catch (err) {
-        console.error("Update user error:", err);
-        return res.status(500).json({
-            success: false,
-            message: "Server error"
-        })
-    }
-}
+        const { fullName, email, role } = req.body;
+        const updateData = { fullName, email, role };
 
-// Delete
+        // If password is provided and not empty, hash it
+        if (req.body.password) {
+            updateData.password = await bcrypt.hash(req.body.password, 10);
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(req.params.id, updateData, { new: true }).select('-password');
+        if (!updatedUser) {
+            return res.status(404).json({ success: false, message: "User not found." });
+        }
+        res.status(200).json({ success: true, message: "User updated successfully.", data: updatedUser });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Server error.", error: error.message });
+    }
+};
+
+// Delete a user
 exports.deleteOneUser = async (req, res) => {
     try {
-        const _id = req.params.id
-        
-        const result = await User.deleteOne({ _id: _id })
-        
-        if (result.deletedCount === 0) {
-            return res.status(404).json({
-                success: false,
-                message: "User not found"
-            });
+        const user = await User.findByIdAndDelete(req.params.id);
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found." });
         }
-        
+        res.status(200).json({ success: true, message: "User deleted successfully." });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Server error.", error: error.message });
+    }
+};
+
+// Promote a user to admin
+exports.promoteUserToAdmin = async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id);
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        user.role = 'admin';
+        await user.save();
+
+        const { password, ...userData } = user.toObject();
+
         return res.status(200).json({
             success: true,
-            message: "User deleted"
-        })
-        
-    } catch (err) {
-        console.error("Delete user error:", err);
-        return res.status(500).json({
-            success: false,
-            message: "Server error"
-        })
+            message: `User ${user.fullName} has been promoted to admin.`,
+            data: userData
+        });
+
+    } catch (error) {
+        console.error("Promote user error:", error);
+        return res.status(500).json({ success: false, message: "Server error" });
     }
-}
+};
