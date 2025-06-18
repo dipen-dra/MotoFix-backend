@@ -1,3 +1,5 @@
+
+
 // const Booking = require('../../models/Booking');
 // const Service = require('../../models/Service');
 // const User = require('../../models/User');
@@ -49,8 +51,8 @@
 //         });
 
 //         await booking.save();
+//         console.log('Saved Booking:', booking.toJSON()); // Log the saved document
 //         res.status(201).json({ success: true, data: booking });
-
 //     } catch (error) {
 //         console.error(error);
 //         res.status(500).json({ success: false, message: 'Server Error' });
@@ -61,8 +63,6 @@
 //     getUserBookings,
 //     createBooking
 // };
-
-
 
 const Booking = require('../../models/Booking');
 const Service = require('../../models/Service');
@@ -75,6 +75,7 @@ const User = require('../../models/User');
  */
 const getUserBookings = async (req, res) => {
     try {
+        // This query now works because the schema has a 'customer' field.
         const bookings = await Booking.find({ customer: req.user.id }).sort({ date: -1 });
         res.json({ success: true, data: bookings });
     } catch (error) {
@@ -99,11 +100,15 @@ const createBooking = async (req, res) => {
         const user = await User.findById(req.user.id);
         const service = await Service.findById(serviceId);
 
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found.' });
+        }
         if (!service) {
             return res.status(404).json({ success: false, message: 'Service not found.' });
         }
 
         const booking = new Booking({
+            // This now correctly saves to the 'customer' field in the schema.
             customer: user._id,
             customerName: user.fullName,
             serviceType: service.name,
@@ -115,7 +120,6 @@ const createBooking = async (req, res) => {
         });
 
         await booking.save();
-        console.log('Saved Booking:', booking.toJSON()); // Log the saved document
         res.status(201).json({ success: true, data: booking });
     } catch (error) {
         console.error(error);
