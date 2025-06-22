@@ -60,7 +60,7 @@ const bcrypt = require("bcrypt");
 
 // Create a new user
 exports.createUser = async (req, res) => {
-    const { fullName, email, password, role } = req.body;
+    const { fullName, email, password, role ,phone} = req.body;
 
     if (!fullName || !email || !password) {
         return res.status(400).json({
@@ -84,7 +84,8 @@ exports.createUser = async (req, res) => {
             fullName,
             email,
             password: hashedPassword,
-            role: role || 'normal'
+            role: role || 'normal',
+            phone:phone || " "
         });
 
         await newUser.save();
@@ -139,8 +140,8 @@ exports.getOneUser = async (req, res) => {
 // Update a user
 exports.updateOneUser = async (req, res) => {
     try {
-        const { fullName, email, role } = req.body;
-        const updateData = { fullName, email, role };
+        const { fullName, email, role,phone } = req.body;
+        const updateData = { fullName, email, role ,phone};
 
         // If password is provided and not empty, hash it
         if (req.body.password) {
