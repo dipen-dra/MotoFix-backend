@@ -64,7 +64,12 @@ const UserSchema = new Schema(
         phone: {
             type: String,
             default: ""
+        },
+        profilePicture: {
+            type: String,
+            default: ""
         }
+
     },
     { timestamps: true }
 )

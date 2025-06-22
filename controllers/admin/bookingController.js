@@ -281,7 +281,7 @@ const getAllBookings = async (req, res) => {
             .sort({ createdAt: -1 });
             
         // LOGGING ADDED HERE:
-        console.log("DATA FOR ALL BOOKINGS LIST:", bookings);
+        // console.log("DATA FOR ALL BOOKINGS LIST:", bookings);
 
         res.json({ success: true, data: bookings });
     } catch (error) {
@@ -302,7 +302,7 @@ const getBookingById = async (req, res) => {
             .populate('customer', 'fullName email phone');
 
         // LOGGING ADDED HERE:
-        console.log("DATA FOR SINGLE BOOKING:", booking);
+        // console.log("DATA FOR SINGLE BOOKING:", booking);
 
         if (!booking) {
             return res.status(404).json({ success: false, message: 'Booking not found' });
@@ -320,32 +320,73 @@ const getBookingById = async (req, res) => {
  * @route   PUT /api/admin/bookings/:id/status
  * @access  Private/Admin
  */
-const updateBookingStatus = async (req, res) => {
-    try {
-        const { status } = req.body;
-        const validStatuses = ['Pending', 'In Progress', 'Completed', 'Cancelled'];
-        if (!validStatuses.includes(status)) {
-            return res.status(400).json({ success: false, message: 'Invalid status value' });
-        }
+// ... other functions in adminController.js
 
+/**
+ * @desc    Update a booking (status, cost, etc.)
+ * @route   PUT /api/admin/bookings/:id
+ * @access  Private/Admin
+ */
+const updateBooking = async (req, res) => { // Renamed for clarity
+    try {
+        const { status, totalCost } = req.body;
         const booking = await Booking.findById(req.params.id);
 
         if (!booking) {
             return res.status(404).json({ success: false, message: 'Booking not found' });
         }
 
-        booking.status = status;
-        await booking.save();
+        // Update fields if they are provided in the request
+        if (status) {
+            const validStatuses = ['Pending', 'In Progress', 'Completed', 'Cancelled'];
+            if (!validStatuses.includes(status)) {
+                return res.status(400).json({ success: false, message: 'Invalid status value' });
+            }
+            booking.status = status;
+        }
+        
+        if (totalCost !== undefined) {
+            booking.totalCost = totalCost;
+        }
 
-        const updatedBooking = await Booking.findById(booking._id)
-            .populate('customer', 'fullName email phone');
+        const updatedBooking = await booking.save();
+        
+        // Populate the response to keep the frontend data consistent
+        await updatedBooking.populate('customer', 'fullName email phone');
 
-        res.json({ success: true, data: updatedBooking });
+        res.json({ success: true, data: updatedBooking, message: "Booking updated successfully." });
     } catch (error) {
-        console.error('Error updating booking status:', error);
-        res.status(500).json({ success: false, message: 'Server error' });
+        console.error('Error updating booking:', error);
+        res.status(500).json({ success: false, message: 'Server error while updating booking.' });
     }
 };
+
+// const updateBookingStatus = async (req, res) => {
+//     try {
+//         const { status } = req.body;
+//         const validStatuses = ['Pending', 'In Progress', 'Completed', 'Cancelled'];
+//         if (!validStatuses.includes(status)) {
+//             return res.status(400).json({ success: false, message: 'Invalid status value' });
+//         }
+
+//         const booking = await Booking.findById(req.params.id);
+
+//         if (!booking) {
+//             return res.status(404).json({ success: false, message: 'Booking not found' });
+//         }
+
+//         booking.status = status;
+//         await booking.save();
+
+//         const updatedBooking = await Booking.findById(booking._id)
+//             .populate('customer', 'fullName email phone');
+
+//         res.json({ success: true, data: updatedBooking });
+//     } catch (error) {
+//         console.error('Error updating booking status:', error);
+//         res.status(500).json({ success: false, message: 'Server error' });
+//     }
+// };
 
 
 /**
@@ -371,6 +412,6 @@ const deleteBooking = async (req, res) => {
 module.exports = {
     getAllBookings,
     getBookingById,
-    updateBookingStatus,
+    updateBooking,
     deleteBooking,
 };
