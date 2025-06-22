@@ -36,9 +36,9 @@ const router = express.Router();
 
 const { 
     getAllBookings, 
-    getBookingById, 
-    updateBookingStatus, 
-    deleteBooking 
+    getBookingById,  
+    deleteBooking, 
+    updateBooking
 } = require('../../controllers/admin/bookingController');
 const { authenticateUser } = require('../../middlewares/authorizedUser');
 
@@ -56,7 +56,7 @@ router.route('/:id')
 
 // PUT (update) a booking's status
 // Matches /api/admin/bookings/:id/status
-router.route('/:id/status')
-    .put(authenticateUser, updateBookingStatus);
+router.route('/:id')
+    .put(authenticateUser, updateBooking);
 
 module.exports = router;
