@@ -1,3 +1,4 @@
+
 // const Booking = require('../../models/Booking');
 // const Service = require('../../models/Service');
 // const User = require('../../models/User');
@@ -9,7 +10,7 @@
 //  */
 // const getUserBookings = async (req, res) => {
 //     try {
-//         const bookings = await Booking.find({ customer: req.user.id }).sort({ date: -1 });
+//         const bookings = await Booking.find({ customer: req.user.id }).sort({ createAt: -1 });
 //         res.json({ success: true, data: bookings });
 //     } catch (error) {
 //         console.error(error);
@@ -18,7 +19,7 @@
 // };
 
 // /**
-//  * @desc    Create a new booking (but doesn't mark as paid)
+//  * @desc    Create a new booking
 //  * @route   POST /api/user/bookings
 //  * @access  Private
 //  */
@@ -60,6 +61,83 @@
 //         res.status(500).json({ success: false, message: 'Server Error' });
 //     }
 // };
+
+// /**
+//  * @desc    Update a booking made by the user
+//  * @route   PUT /api/user/bookings/:id
+//  * @access  Private
+//  */
+// const updateUserBooking = async (req, res) => {
+//     try {
+//         const { serviceId, bikeModel, date, notes } = req.body;
+//         let booking = await Booking.findById(req.params.id);
+
+//         if (!booking) {
+//             return res.status(404).json({ success: false, message: 'Booking not found' });
+//         }
+
+//         if (booking.customer.toString() !== req.user.id) {
+//             return res.status(401).json({ success: false, message: 'User not authorized' });
+//         }
+
+//         if (booking.status !== 'Pending') {
+//             return res.status(400).json({ success: false, message: `Cannot edit a booking with status "${booking.status}"` });
+//         }
+
+//         // If serviceId is provided and is different, update service-related fields
+//         if (serviceId && serviceId.toString() !== booking.serviceType) {
+//             const service = await Service.findById(serviceId);
+//             if (!service) {
+//                 return res.status(404).json({ success: false, message: 'New service not found.' });
+//             }
+//             booking.serviceType = service.name;
+//             booking.totalCost = service.price;
+//         }
+
+//         booking.bikeModel = bikeModel || booking.bikeModel;
+//         booking.date = date || booking.date;
+//         booking.notes = notes || booking.notes;
+
+//         booking = await booking.save();
+
+//         res.json({ success: true, data: booking, message: 'Booking updated successfully' });
+//     } catch (error) {
+//         console.error('Error updating booking:', error);
+//         res.status(500).json({ success: false, message: 'Server error while updating booking.' });
+//     }
+// };
+
+// /**
+//  * @desc    Delete a booking made by the user
+//  * @route   DELETE /api/user/bookings/:id
+//  * @access  Private
+//  */
+// const deleteUserBooking = async (req, res) => {
+//     try {
+//         const booking = await Booking.findById(req.params.id);
+
+//         if (!booking) {
+//             return res.status(404).json({ success: false, message: 'Booking not found' });
+//         }
+
+//         if (booking.customer.toString() !== req.user.id) {
+//             return res.status(401).json({ success: false, message: 'User not authorized' });
+//         }
+        
+//         // You can't delete a booking that has been paid for
+//         if (booking.isPaid) {
+//             return res.status(400).json({ success: false, message: `Cannot delete a booking that has been paid for.` });
+//         }
+
+//         await booking.deleteOne();
+
+//         res.json({ success: true, message: 'Booking deleted successfully.' });
+//     } catch (error) {
+//         console.error('Error deleting booking:', error);
+//         res.status(500).json({ success: false, message: 'Server error' });
+//     }
+// };
+
 
 // /**
 //  * @desc    Confirm a booking payment
@@ -105,21 +183,25 @@
 // module.exports = {
 //     getUserBookings,
 //     createBooking,
+//     updateUserBooking,
+//     deleteUserBooking,
 //     confirmPayment
 // };
+
 
 const Booking = require('../../models/Booking');
 const Service = require('../../models/Service');
 const User = require('../../models/User');
 
 /**
- * @desc    Get all bookings for the logged-in user
+ * @desc    Get all bookings for the logged-in user, sorted by most recent
  * @route   GET /api/user/bookings
  * @access  Private
  */
 const getUserBookings = async (req, res) => {
     try {
-        const bookings = await Booking.find({ customer: req.user.id }).sort({ date: -1 });
+        // Sort by 'createdAt: -1' to show the latest bookings first.
+        const bookings = await Booking.find({ customer: req.user.id }).sort({ createdAt: -1 });
         res.json({ success: true, data: bookings });
     } catch (error) {
         console.error(error);
@@ -178,7 +260,7 @@ const createBooking = async (req, res) => {
  */
 const updateUserBooking = async (req, res) => {
     try {
-        const { bikeModel, date, notes } = req.body;
+        const { serviceId, bikeModel, date, notes } = req.body;
         let booking = await Booking.findById(req.params.id);
 
         if (!booking) {
@@ -189,9 +271,17 @@ const updateUserBooking = async (req, res) => {
             return res.status(401).json({ success: false, message: 'User not authorized' });
         }
 
-        // You can't edit a booking that is already in progress or completed
         if (booking.status !== 'Pending') {
             return res.status(400).json({ success: false, message: `Cannot edit a booking with status "${booking.status}"` });
+        }
+
+        if (serviceId && serviceId.toString() !== booking.serviceType) {
+            const service = await Service.findById(serviceId);
+            if (!service) {
+                return res.status(404).json({ success: false, message: 'New service not found.' });
+            }
+            booking.serviceType = service.name;
+            booking.totalCost = service.price;
         }
 
         booking.bikeModel = bikeModel || booking.bikeModel;
@@ -224,7 +314,6 @@ const deleteUserBooking = async (req, res) => {
             return res.status(401).json({ success: false, message: 'User not authorized' });
         }
         
-        // You can't delete a booking that has been paid for
         if (booking.isPaid) {
             return res.status(400).json({ success: false, message: `Cannot delete a booking that has been paid for.` });
         }
@@ -264,10 +353,9 @@ const confirmPayment = async (req, res) => {
 
         if (paymentMethod === 'COD') {
             booking.paymentMethod = 'COD';
-            booking.paymentStatus = 'Paid'; // Or 'Pending COD Confirmation' if you want another step
+            booking.paymentStatus = 'Paid';
             booking.isPaid = true;
         } else if (paymentMethod === 'Khalti') {
-            // Since there is no API key, we will return an error as requested.
             return res.status(400).json({ success: false, message: "Khalti payment is under construction. Please select Cash on Delivery." });
         }
 
