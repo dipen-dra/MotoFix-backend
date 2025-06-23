@@ -1,16 +1,17 @@
-
 // const Booking = require('../../models/Booking');
 // const Service = require('../../models/Service');
 // const User = require('../../models/User');
+// const axios = require('axios'); // Ensure you have installed axios: npm install axios
 
 // /**
-//  * @desc    Get all bookings for the logged-in user
+//  * @desc    Get all bookings for the logged-in user, sorted by most recent
 //  * @route   GET /api/user/bookings
 //  * @access  Private
 //  */
 // const getUserBookings = async (req, res) => {
 //     try {
-//         const bookings = await Booking.find({ customer: req.user.id }).sort({ createAt: -1 });
+//         // Sort by 'createdAt: -1' to show the latest bookings first.
+//         const bookings = await Booking.find({ customer: req.user.id }).sort({ createdAt: -1 });
 //         res.json({ success: true, data: bookings });
 //     } catch (error) {
 //         console.error(error);
@@ -19,7 +20,7 @@
 // };
 
 // /**
-//  * @desc    Create a new booking
+//  * @desc    Create a new booking, which will have a pending payment status
 //  * @route   POST /api/user/bookings
 //  * @access  Private
 //  */
@@ -84,8 +85,7 @@
 //             return res.status(400).json({ success: false, message: `Cannot edit a booking with status "${booking.status}"` });
 //         }
 
-//         // If serviceId is provided and is different, update service-related fields
-//         if (serviceId && serviceId.toString() !== booking.serviceType) {
+//         if (serviceId) {
 //             const service = await Service.findById(serviceId);
 //             if (!service) {
 //                 return res.status(404).json({ success: false, message: 'New service not found.' });
@@ -98,8 +98,7 @@
 //         booking.date = date || booking.date;
 //         booking.notes = notes || booking.notes;
 
-//         booking = await booking.save();
-
+//         await booking.save();
 //         res.json({ success: true, data: booking, message: 'Booking updated successfully' });
 //     } catch (error) {
 //         console.error('Error updating booking:', error);
@@ -124,13 +123,11 @@
 //             return res.status(401).json({ success: false, message: 'User not authorized' });
 //         }
         
-//         // You can't delete a booking that has been paid for
 //         if (booking.isPaid) {
 //             return res.status(400).json({ success: false, message: `Cannot delete a booking that has been paid for.` });
 //         }
 
 //         await booking.deleteOne();
-
 //         res.json({ success: true, message: 'Booking deleted successfully.' });
 //     } catch (error) {
 //         console.error('Error deleting booking:', error);
@@ -140,15 +137,15 @@
 
 
 // /**
-//  * @desc    Confirm a booking payment
+//  * @desc    Confirm a booking payment via COD
 //  * @route   PUT /api/user/bookings/:id/pay
 //  * @access  Private
 //  */
 // const confirmPayment = async (req, res) => {
 //     const { paymentMethod } = req.body;
 
-//     if (!paymentMethod) {
-//         return res.status(400).json({ success: false, message: 'Payment method is required.' });
+//     if (paymentMethod !== 'COD') {
+//         return res.status(400).json({ success: false, message: 'This route is only for COD payments.' });
 //     }
 
 //     try {
@@ -162,21 +159,64 @@
 //             return res.status(403).json({ success: false, message: 'Not authorized to update this booking.' });
 //         }
 
-//         if (paymentMethod === 'COD') {
-//             booking.paymentMethod = 'COD';
-//             booking.paymentStatus = 'Paid'; // Or 'Pending COD Confirmation' if you want another step
-//             booking.isPaid = true;
-//         } else if (paymentMethod === 'Khalti') {
-//             // Since there is no API key, we will return an error as requested.
-//             return res.status(400).json({ success: false, message: "Khalti payment is under construction. Please select Cash on Delivery." });
-//         }
+//         booking.paymentMethod = 'COD';
+//         booking.paymentStatus = 'Paid';
+//         booking.isPaid = true;
 
 //         await booking.save();
 //         res.status(200).json({ success: true, data: booking, message: "Payment confirmed successfully!" });
-
 //     } catch (error) {
 //         console.error(error);
 //         res.status(500).json({ success: false, message: 'Server Error' });
+//     }
+// };
+
+// /**
+//  * @desc    Verify a Khalti payment (LIVE IMPLEMENTATION)
+//  * @route   POST /api/user/bookings/verify-khalti
+//  * @access  Private
+//  */
+// const verifyKhaltiPayment = async (req, res) => {
+//     const { token, amount, booking_id } = req.body;
+
+//     if (!token || !amount || !booking_id) {
+//         return res.status(400).json({ success: false, message: 'Missing payment verification details.' });
+//     }
+
+//     try {
+//         const verificationData = {
+//             token: token,
+//             amount: amount,
+//         };
+
+//         const khaltiResponse = await axios.post(
+//             'https://khalti.com/api/v2/payment/verify/',
+//             verificationData,
+//             {
+//                 headers: {
+//                     'Authorization': `Key ${process.env.KHALTI_SECRET_KEY}`
+//                 }
+//             }
+//         );
+
+//         if (khaltiResponse.data && khaltiResponse.data.idx) {
+//             const booking = await Booking.findById(booking_id);
+//             if (!booking) {
+//                 return res.status(404).json({ success: false, message: 'Booking not found after payment.' });
+//             }
+
+//             booking.paymentMethod = 'Khalti';
+//             booking.paymentStatus = 'Paid';
+//             booking.isPaid = true;
+            
+//             await booking.save();
+//             return res.status(200).json({ success: true, message: "Payment successful and booking updated." });
+//         } else {
+//             return res.status(400).json({ success: false, message: 'Khalti payment verification failed.' });
+//         }
+//     } catch (error) {
+//         console.error('Khalti verification error:', error.response ? error.response.data : error.message);
+//         res.status(500).json({ success: false, message: 'Server error during Khalti verification.' });
 //     }
 // };
 
@@ -185,13 +225,14 @@
 //     createBooking,
 //     updateUserBooking,
 //     deleteUserBooking,
-//     confirmPayment
+//     confirmPayment,
+//     verifyKhaltiPayment
 // };
-
 
 const Booking = require('../../models/Booking');
 const Service = require('../../models/Service');
 const User = require('../../models/User');
+const axios = require('axios'); // Ensure you have installed axios: npm install axios
 
 /**
  * @desc    Get all bookings for the logged-in user, sorted by most recent
@@ -210,7 +251,7 @@ const getUserBookings = async (req, res) => {
 };
 
 /**
- * @desc    Create a new booking
+ * @desc    Create a new booking, which will have a pending payment status
  * @route   POST /api/user/bookings
  * @access  Private
  */
@@ -275,7 +316,7 @@ const updateUserBooking = async (req, res) => {
             return res.status(400).json({ success: false, message: `Cannot edit a booking with status "${booking.status}"` });
         }
 
-        if (serviceId && serviceId.toString() !== booking.serviceType) {
+        if (serviceId) {
             const service = await Service.findById(serviceId);
             if (!service) {
                 return res.status(404).json({ success: false, message: 'New service not found.' });
@@ -288,8 +329,7 @@ const updateUserBooking = async (req, res) => {
         booking.date = date || booking.date;
         booking.notes = notes || booking.notes;
 
-        booking = await booking.save();
-
+        await booking.save();
         res.json({ success: true, data: booking, message: 'Booking updated successfully' });
     } catch (error) {
         console.error('Error updating booking:', error);
@@ -319,7 +359,6 @@ const deleteUserBooking = async (req, res) => {
         }
 
         await booking.deleteOne();
-
         res.json({ success: true, message: 'Booking deleted successfully.' });
     } catch (error) {
         console.error('Error deleting booking:', error);
@@ -329,15 +368,15 @@ const deleteUserBooking = async (req, res) => {
 
 
 /**
- * @desc    Confirm a booking payment
+ * @desc    Confirm a booking payment via COD
  * @route   PUT /api/user/bookings/:id/pay
  * @access  Private
  */
 const confirmPayment = async (req, res) => {
     const { paymentMethod } = req.body;
 
-    if (!paymentMethod) {
-        return res.status(400).json({ success: false, message: 'Payment method is required.' });
+    if (paymentMethod !== 'COD') {
+        return res.status(400).json({ success: false, message: 'This route is only for COD payments.' });
     }
 
     try {
@@ -351,20 +390,64 @@ const confirmPayment = async (req, res) => {
             return res.status(403).json({ success: false, message: 'Not authorized to update this booking.' });
         }
 
-        if (paymentMethod === 'COD') {
-            booking.paymentMethod = 'COD';
-            booking.paymentStatus = 'Paid';
-            booking.isPaid = true;
-        } else if (paymentMethod === 'Khalti') {
-            return res.status(400).json({ success: false, message: "Khalti payment is under construction. Please select Cash on Delivery." });
-        }
+        booking.paymentMethod = 'COD';
+        booking.paymentStatus = 'Paid';
+        booking.isPaid = true;
 
         await booking.save();
         res.status(200).json({ success: true, data: booking, message: "Payment confirmed successfully!" });
-
     } catch (error) {
         console.error(error);
         res.status(500).json({ success: false, message: 'Server Error' });
+    }
+};
+
+/**
+ * @desc    Verify a Khalti payment (LIVE IMPLEMENTATION)
+ * @route   POST /api/user/bookings/verify-khalti
+ * @access  Private
+ */
+const verifyKhaltiPayment = async (req, res) => {
+    const { token, amount, booking_id } = req.body;
+
+    if (!token || !amount || !booking_id) {
+        return res.status(400).json({ success: false, message: 'Missing payment verification details.' });
+    }
+
+    try {
+        const verificationData = {
+            token: token,
+            amount: amount,
+        };
+
+        const khaltiResponse = await axios.post(
+            'https://khalti.com/api/v2/payment/verify/',
+            verificationData,
+            {
+                headers: {
+                    'Authorization': `Key ${process.env.KHALTI_SECRET_KEY}`
+                }
+            }
+        );
+
+        if (khaltiResponse.data && khaltiResponse.data.idx) {
+            const booking = await Booking.findById(booking_id);
+            if (!booking) {
+                return res.status(404).json({ success: false, message: 'Booking not found after payment.' });
+            }
+
+            booking.paymentMethod = 'Khalti';
+            booking.paymentStatus = 'Paid';
+            booking.isPaid = true;
+            
+            await booking.save();
+            return res.status(200).json({ success: true, message: "Payment successful and booking updated." });
+        } else {
+            return res.status(400).json({ success: false, message: 'Khalti payment verification failed.' });
+        }
+    } catch (error) {
+        console.error('Khalti verification error:', error.response ? error.response.data : error.message);
+        res.status(500).json({ success: false, message: 'Server error during Khalti verification.' });
     }
 };
 
@@ -373,5 +456,6 @@ module.exports = {
     createBooking,
     updateUserBooking,
     deleteUserBooking,
-    confirmPayment
+    confirmPayment,
+    verifyKhaltiPayment
 };
