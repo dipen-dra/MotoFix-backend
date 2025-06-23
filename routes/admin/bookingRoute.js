@@ -1,36 +1,3 @@
-
-
-// const express = require('express');
-// const router = express.Router();
-
-// const { 
-//     getAllBookings, 
-//     getBookingById,  
-//     deleteBooking, 
-//     updateBooking
-// } = require('../../controllers/admin/bookingController');
-// const { authenticateUser } = require('../../middlewares/authorizedUser');
-
-// // GET all bookings
-// // Matches /api/admin/bookings
-// router.route('/')
-//     .get(authenticateUser, getAllBookings);
-
-// // GET a single booking by ID
-// // DELETE a single booking by ID
-// // Matches /api/admin/bookings/:id
-// router.route('/:id')
-//     .get(authenticateUser, getBookingById)
-//     .delete(authenticateUser, deleteBooking);
-
-// // PUT (update) a booking's status
-// // Matches /api/admin/bookings/:id/status
-// router.route('/:id')
-//     .put(authenticateUser, updateBooking);
-
-// module.exports = router;
-
-
 const express = require('express');
 const router = express.Router();
 
