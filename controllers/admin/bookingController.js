@@ -8,12 +8,10 @@
 // const getAllBookings = async (req, res) => {
 //     try {
 //         const bookings = await Booking.find({})
-//             .populate('customer', 'fullName email phone') 
+//             // UPDATED: Added 'address' to the populated fields
+//             .populate('customer', 'fullName email phone address') 
 //             .sort({ createdAt: -1 });
             
-//         // LOGGING ADDED HERE:
-//         // console.log("DATA FOR ALL BOOKINGS LIST:", bookings);
-
 //         res.json({ success: true, data: bookings });
 //     } catch (error) {
 //         console.error("Admin getBookings Error:", error);
@@ -30,10 +28,8 @@
 // const getBookingById = async (req, res) => {
 //     try {
 //         const booking = await Booking.findById(req.params.id)
-//             .populate('customer', 'fullName email phone');
-
-//         // LOGGING ADDED HERE:
-//         // console.log("DATA FOR SINGLE BOOKING:", booking);
+//             // UPDATED: Added 'address' to the populated fields
+//             .populate('customer', 'fullName email phone address');
 
 //         if (!booking) {
 //             return res.status(404).json({ success: false, message: 'Booking not found' });
@@ -47,18 +43,11 @@
 // };
 
 // /**
-//  * @desc    Update booking status
-//  * @route   PUT /api/admin/bookings/:id/status
-//  * @access  Private/Admin
-//  */
-// // ... other functions in adminController.js
-
-// /**
 //  * @desc    Update a booking (status, cost, etc.)
 //  * @route   PUT /api/admin/bookings/:id
 //  * @access  Private/Admin
 //  */
-// const updateBooking = async (req, res) => { // Renamed for clarity
+// const updateBooking = async (req, res) => {
 //     try {
 //         const { status, totalCost } = req.body;
 //         const booking = await Booking.findById(req.params.id);
@@ -82,8 +71,8 @@
 
 //         const updatedBooking = await booking.save();
         
-//         // Populate the response to keep the frontend data consistent
-//         await updatedBooking.populate('customer', 'fullName email phone');
+//         // UPDATED: Added 'address' to the populated fields for the response
+//         await updatedBooking.populate('customer', 'fullName email phone address');
 
 //         res.json({ success: true, data: updatedBooking, message: "Booking updated successfully." });
 //     } catch (error) {
@@ -91,34 +80,6 @@
 //         res.status(500).json({ success: false, message: 'Server error while updating booking.' });
 //     }
 // };
-
-// // const updateBookingStatus = async (req, res) => {
-// //     try {
-// //         const { status } = req.body;
-// //         const validStatuses = ['Pending', 'In Progress', 'Completed', 'Cancelled'];
-// //         if (!validStatuses.includes(status)) {
-// //             return res.status(400).json({ success: false, message: 'Invalid status value' });
-// //         }
-
-// //         const booking = await Booking.findById(req.params.id);
-
-// //         if (!booking) {
-// //             return res.status(404).json({ success: false, message: 'Booking not found' });
-// //         }
-
-// //         booking.status = status;
-// //         await booking.save();
-
-// //         const updatedBooking = await Booking.findById(booking._id)
-// //             .populate('customer', 'fullName email phone');
-
-// //         res.json({ success: true, data: updatedBooking });
-// //     } catch (error) {
-// //         console.error('Error updating booking status:', error);
-// //         res.status(500).json({ success: false, message: 'Server error' });
-// //     }
-// // };
-
 
 // /**
 //  * @desc    Delete a booking
@@ -139,7 +100,6 @@
 //     }
 // };
 
-
 // module.exports = {
 //     getAllBookings,
 //     getBookingById,
@@ -151,17 +111,17 @@
 const Booking = require('../../models/Booking');
 
 /**
- * @desc    Get all bookings
+ * @desc    Get all paid bookings
  * @route   GET /api/admin/bookings
  * @access  Private/Admin
  */
 const getAllBookings = async (req, res) => {
     try {
-        const bookings = await Booking.find({})
-            // UPDATED: Added 'address' to the populated fields
-            .populate('customer', 'fullName email phone address') 
+        // Only fetch bookings that are paid
+        const bookings = await Booking.find({ isPaid: true })
+            .populate('customer', 'fullName email phone address')
             .sort({ createdAt: -1 });
-            
+
         res.json({ success: true, data: bookings });
     } catch (error) {
         console.error("Admin getBookings Error:", error);
@@ -169,16 +129,10 @@ const getAllBookings = async (req, res) => {
     }
 };
 
-
-/**
- * @desc    Get a single booking by ID
- * @route   GET /api/admin/bookings/:id
- * @access  Private/Admin
- */
+// ... (getBookingById, updateBooking, and deleteBooking remain the same)
 const getBookingById = async (req, res) => {
     try {
         const booking = await Booking.findById(req.params.id)
-            // UPDATED: Added 'address' to the populated fields
             .populate('customer', 'fullName email phone address');
 
         if (!booking) {
@@ -192,11 +146,6 @@ const getBookingById = async (req, res) => {
     }
 };
 
-/**
- * @desc    Update a booking (status, cost, etc.)
- * @route   PUT /api/admin/bookings/:id
- * @access  Private/Admin
- */
 const updateBooking = async (req, res) => {
     try {
         const { status, totalCost } = req.body;
@@ -221,7 +170,6 @@ const updateBooking = async (req, res) => {
 
         const updatedBooking = await booking.save();
         
-        // UPDATED: Added 'address' to the populated fields for the response
         await updatedBooking.populate('customer', 'fullName email phone address');
 
         res.json({ success: true, data: updatedBooking, message: "Booking updated successfully." });
@@ -231,11 +179,6 @@ const updateBooking = async (req, res) => {
     }
 };
 
-/**
- * @desc    Delete a booking
- * @route   DELETE /api/admin/bookings/:id
- * @access  Private/Admin
- */
 const deleteBooking = async (req, res) => {
     try {
         const booking = await Booking.findByIdAndDelete(req.params.id);
@@ -249,6 +192,7 @@ const deleteBooking = async (req, res) => {
         res.status(500).json({ success: false, message: "Server error." });
     }
 };
+
 
 module.exports = {
     getAllBookings,
