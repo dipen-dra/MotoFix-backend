@@ -169,6 +169,7 @@ export const verifyEsewaPayment = async (req, res) => {
             if (booking) {
                 booking.paymentStatus = 'Paid';
                 booking.paymentMethod = 'eSewa';
+                booking.isPaid=true;
                 await booking.save();
             }
             res.json({ success: true, message: 'Payment verified successfully' });
