@@ -1,7 +1,5 @@
 
 
-
-
 // index.js
 require('dotenv').config();
 
@@ -9,6 +7,9 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const connectDB = require('./config/db');
+const esewaRoute = require('./routes/esewaRoute');
+
+
 
 
 // Initialize Express app
@@ -42,6 +43,7 @@ app.use('/api/user', require('./routes/user/dashboardRoute'));
 app.use('/api/user', require('./routes/user/bookingRoute'));
 app.use('/api/user', require('./routes/user/serviceRoute'));
 app.use('/api/user', require('./routes/user/profileRoute'));
+app.use('/api/payment/esewa', esewaRoute);
 
 // Define the port
 const PORT = process.env.PORT || 5050;
