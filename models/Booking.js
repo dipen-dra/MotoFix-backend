@@ -1,5 +1,4 @@
 
-
 // const mongoose = require("mongoose");
 // const Schema = mongoose.Schema;
 
@@ -40,6 +39,21 @@
 //         totalCost: {
 //             type: Number,
 //             required: true
+//         },
+//         // NEW FIELDS ADDED
+//         paymentStatus: {
+//             type: String,
+//             enum: ['Pending', 'Paid', 'Failed'],
+//             default: 'Pending'
+//         },
+//         paymentMethod: {
+//             type: String,
+//             enum: ['COD', 'Khalti', 'Not Selected'],
+//             default: 'Not Selected'
+//         },
+//         isPaid: {
+//             type: Boolean,
+//             default: false
 //         }
 //     },
 //     { timestamps: true }
@@ -51,14 +65,12 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
-// CORRECTED AND FINAL SCHEMA
 const BookingSchema = new Schema(
     {
-        // This is the correct field name that matches your controllers.
         customer: {
             type: Schema.Types.ObjectId,
             ref: 'User',
-            required: true // Making it required prevents creating bookings without a user.
+            required: true
         },
         customerName: {
             type: String,
@@ -81,7 +93,7 @@ const BookingSchema = new Schema(
             type: Date,
             required: true
         },
-        notes: { // Adding notes field as it's used in the create function
+        notes: {
             type: String,
             default: ''
         },
@@ -89,7 +101,6 @@ const BookingSchema = new Schema(
             type: Number,
             required: true
         },
-        // NEW FIELDS ADDED
         paymentStatus: {
             type: String,
             enum: ['Pending', 'Paid', 'Failed'],
@@ -97,7 +108,7 @@ const BookingSchema = new Schema(
         },
         paymentMethod: {
             type: String,
-            enum: ['COD', 'Khalti', 'Not Selected'],
+            enum: ['COD', 'Khalti', 'eSewa', 'Not Selected'], // 'eSewa' is now a valid option
             default: 'Not Selected'
         },
         isPaid: {
