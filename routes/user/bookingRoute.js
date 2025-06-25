@@ -1,13 +1,29 @@
 const express = require('express');
 const router = express.Router();
 
-const { getUserBookings, createBooking } = require('../../controllers/user/bookingController');
+const { 
+    getUserBookings, 
+    createBooking, 
+    updateUserBooking, 
+    deleteUserBooking, 
+    confirmPayment,
+    verifyKhaltiPayment // Import the new function
+} = require('../../controllers/user/bookingController');
 const { authenticateUser } = require('../../middlewares/authorizedUser');
 
 router.route('/bookings')
     .get(authenticateUser, getUserBookings)
     .post(authenticateUser, createBooking);
 
+router.route('/bookings/:id')
+    .put(authenticateUser, updateUserBooking)
+    .delete(authenticateUser, deleteUserBooking);
+
+router.route('/bookings/:id/pay')
+    .put(authenticateUser, confirmPayment);
+
+// New route for Khalti verification in test mode
+router.route('/bookings/verify-khalti')
+    .post(authenticateUser, verifyKhaltiPayment);
+
 module.exports = router;
-// This code sets up routes for user bookings.
-// It includes a GET route to fetch user bookings and a POST route to create a new booking
