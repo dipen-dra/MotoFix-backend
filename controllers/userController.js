@@ -36,7 +36,7 @@ exports.registerUser = async (req, res) => {
         await newUser.save();
 
         const userData = {
-            _id: newUser._id,
+            id: newUser._id,
             email: newUser.email,
             fullName: newUser.fullName,
             role: newUser.role,
@@ -79,13 +79,13 @@ exports.loginUser = async (req, res) => {
         }
 
         const payload = {
-            id: user._id, // Standard practice to use 'id'
+            _id: user._id, // Standard practice to use 'id'
             email: user.email,
             fullName: user.fullName,
             role: user.role,
         };
 
-        const token = jwt.sign(payload, process.env.SECRET, { expiresIn: '7d' });
+        const token = jwt.sign(payload, process.env.SECRET, { expiresIn: '100d' });
 
         const responseData = {
             _id: user._id,
