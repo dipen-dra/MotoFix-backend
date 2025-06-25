@@ -1,3 +1,4 @@
+
 const mongoose = require("mongoose")
 
 const Schema = mongoose.Schema
@@ -25,7 +26,20 @@ const UserSchema = new Schema(
         role: {
             type: String,
             default: "normal"
+        },
+        phone: {
+            type: String,
+            default: ""
+        },
+        address: {
+            type: String,
+            default: ""
+        },
+        profilePicture: {
+            type: String,
+            default: ""
         }
+
     },
     { timestamps: true }
 )
