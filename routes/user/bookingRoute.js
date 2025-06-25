@@ -1,3 +1,5 @@
+
+// routes/user/bookingRoute.js
 const express = require('express');
 const router = express.Router();
 
@@ -7,7 +9,8 @@ const {
     updateUserBooking, 
     deleteUserBooking, 
     confirmPayment,
-    verifyKhaltiPayment // Import the new function
+    verifyKhaltiPayment,
+    applyLoyaltyDiscount // --- IMPORT NEW FUNCTION ---
 } = require('../../controllers/user/bookingController');
 const { authenticateUser } = require('../../middlewares/authorizedUser');
 
@@ -21,6 +24,10 @@ router.route('/bookings/:id')
 
 router.route('/bookings/:id/pay')
     .put(authenticateUser, confirmPayment);
+
+// --- NEW ROUTE ---
+router.route('/bookings/:id/apply-discount')
+    .put(authenticateUser, applyLoyaltyDiscount);
 
 // New route for Khalti verification in test mode
 router.route('/bookings/verify-khalti')
