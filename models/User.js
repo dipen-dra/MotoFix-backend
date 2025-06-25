@@ -5,11 +5,6 @@ const Schema = mongoose.Schema
 
 const UserSchema = new Schema(
     {
-        // username: {
-        //     type: String,
-        //     required: true,
-        //     unique: true
-        // },
         fullName: {
             type: String,
             required: true

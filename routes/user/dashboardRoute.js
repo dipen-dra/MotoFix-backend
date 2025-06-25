@@ -1,18 +1,3 @@
-// const express = require('express');
-// const router = express.Router();
-
-// const { getDashboardSummary } = require('../../controllers/user/dashboardController');
-// const authorizedUser = require('../../middlewares/authorizedUser');
-
-// // This line requires 'getDashboardSummary' to be a function.
-// // If it's undefined, the server will crash with the error you are seeing.
-// console.log('getDashboardSummary:', getDashboardSummary);
-// // @route   GET /api/user/dashboard-summary
-// // @desc    Get user dashboard summary
-// router.get('/dashboard-summary', authorizedUser, getDashboardSummary);
-
-// module.exports = router;
-
 const express = require('express');
 const router = express.Router();
 const { getDashboardSummary } = require('../../controllers/user/dashboardController');
