@@ -1,4 +1,5 @@
-;const mongoose = require("mongoose");
+// models/Booking.js
+const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
 const BookingSchema = new Schema(
@@ -33,10 +34,24 @@ const BookingSchema = new Schema(
             type: String,
             default: ''
         },
-        totalCost: {
+        totalCost: { // This will be the original cost of the service
             type: Number,
             required: true
         },
+        // --- NEW FIELDS START ---
+        discountApplied: {
+            type: Boolean,
+            default: false
+        },
+        discountAmount: {
+            type: Number,
+            default: 0
+        },
+        finalAmount: { // This will be the cost after discount
+            type: Number,
+            required: true
+        },
+        // --- NEW FIELDS END ---
         paymentStatus: {
             type: String,
             enum: ['Pending', 'Paid', 'Failed'],
@@ -44,7 +59,7 @@ const BookingSchema = new Schema(
         },
         paymentMethod: {
             type: String,
-            enum: ['COD', 'Khalti', 'eSewa', 'Not Selected'], // 'eSewa' is now a valid option
+            enum: ['COD', 'Khalti', 'eSewa', 'Not Selected'],
             default: 'Not Selected'
         },
         isPaid: {
