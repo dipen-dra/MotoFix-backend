@@ -1,14 +1,20 @@
-// controllers/user/bookingController.js
-const Booking = require('../../models/Booking');
-const Service = require('../../models/Service');
-const User = require('../../models/User');
-const axios = require('axios');
+/**
+ * @file controllers/user/bookingController.js
+ * @description Controller for user-facing booking operations.
+ */
+
+import Booking from '../../models/Booking.js';
+import Service from '../../models/Service.js';
+import User from '../../models/User.js';
+import axios from 'axios';
+import sendEmail from '../../utils/sendEmail.js'; // Import the email utility
 
 // Helper function to award loyalty points
 const awardLoyaltyPoints = async (userId) => {
     const user = await User.findById(userId);
     if (user) {
-        const pointsToAdd = 10;
+        // In the esewa controller it was random, here it is 10. Making it random for consistency.
+        const pointsToAdd = Math.floor(Math.random() * 11) + 10; // 10 to 20 points
         user.loyaltyPoints = (user.loyaltyPoints || 0) + pointsToAdd;
         await user.save();
         return pointsToAdd;
@@ -16,13 +22,12 @@ const awardLoyaltyPoints = async (userId) => {
     return 0;
 };
 
-
 /**
- * @desc    Get all bookings for the logged-in user, sorted by most recent
- * @route   GET /api/user/bookings
- * @access  Private
+ * @desc      Get all bookings for the logged-in user
+ * @route     GET /api/user/bookings
+ * @access    Private
  */
-const getUserBookings = async (req, res) => {
+export const getUserBookings = async (req, res) => {
     try {
         const bookings = await Booking.find({ customer: req.user.id }).sort({ createdAt: -1 });
         res.json({ success: true, data: bookings });
@@ -33,11 +38,11 @@ const getUserBookings = async (req, res) => {
 };
 
 /**
- * @desc    Create a new booking, which will have a pending payment status
- * @route   POST /api/user/bookings
- * @access  Private
+ * @desc      Create a new booking
+ * @route     POST /api/user/bookings
+ * @access    Private
  */
-const createBooking = async (req, res) => {
+export const createBooking = async (req, res) => {
     const { serviceId, bikeModel, date, notes } = req.body;
 
     if (!serviceId || !bikeModel || !date) {
@@ -74,11 +79,11 @@ const createBooking = async (req, res) => {
 };
 
 /**
- * @desc    Update a booking made by the user
- * @route   PUT /api/user/bookings/:id
- * @access  Private
+ * @desc      Update a booking made by the user
+ * @route     PUT /api/user/bookings/:id
+ * @access    Private
  */
-const updateUserBooking = async (req, res) => {
+export const updateUserBooking = async (req, res) => {
     try {
         const { serviceId, bikeModel, date, notes } = req.body;
         let booking = await Booking.findById(req.params.id);
@@ -110,11 +115,11 @@ const updateUserBooking = async (req, res) => {
 };
 
 /**
- * @desc    Delete/Cancel a booking made by the user
- * @route   DELETE /api/user/bookings/:id
- * @access  Private
+ * @desc      Delete/Cancel a booking made by the user
+ * @route     DELETE /api/user/bookings/:id
+ * @access    Private
  */
-const deleteUserBooking = async (req, res) => {
+export const deleteUserBooking = async (req, res) => {
     try {
         const booking = await Booking.findById(req.params.id);
 
@@ -122,19 +127,16 @@ const deleteUserBooking = async (req, res) => {
         if (booking.customer.toString() !== req.user.id) return res.status(401).json({ success: false, message: 'User not authorized' });
         if (booking.isPaid) return res.status(400).json({ success: false, message: 'Cannot cancel a booking that has been paid for.' });
         
-        // --- NEW LOGIC: Refund points if discount was applied ---
         if (booking.discountApplied) {
             const user = await User.findById(req.user.id);
             if (user) {
-                user.loyaltyPoints += 100; // Give back the 100 points
+                user.loyaltyPoints += 100; // Refund the 100 points
                 await user.save();
             }
         }
-        // --- END OF NEW LOGIC ---
 
         await booking.deleteOne();
         
-        // --- MODIFIED: Updated success message to be more general ---
         res.json({ success: true, message: 'Booking cancelled successfully. Any used loyalty points have been refunded.' });
 
     } catch (error) {
@@ -145,41 +147,75 @@ const deleteUserBooking = async (req, res) => {
 
 
 /**
- * @desc    Confirm a booking payment via COD
- * @route   PUT /api/user/bookings/:id/pay
- * @access  Private
+ * @desc      Confirm a booking payment via COD
+ * @route     PUT /api/user/bookings/:id/pay
+ * @access    Private
  */
-const confirmPayment = async (req, res) => {
+export const confirmPayment = async (req, res) => {
     const { paymentMethod } = req.body;
     if (paymentMethod !== 'COD') return res.status(400).json({ success: false, message: 'This route is only for COD payments.' });
 
     try {
-        const booking = await Booking.findById(req.params.id);
+        const booking = await Booking.findById(req.params.id).populate('customer', 'fullName email');
 
         if (!booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
-        if (booking.customer.toString() !== req.user.id) return res.status(403).json({ success: false, message: 'Not authorized.' });
+        if (booking.customer._id.toString() !== req.user.id) return res.status(403).json({ success: false, message: 'Not authorized.' });
         if (booking.isPaid) return res.status(400).json({ success: false, message: 'Booking is already paid.' });
 
         booking.paymentMethod = 'COD';
-        booking.paymentStatus = 'Paid';
-        booking.isPaid = true;
+        booking.paymentStatus = 'Paid'; // Marked as 'Paid' but payment is on delivery
+        booking.isPaid = true; // Set to true to confirm booking in the system
         await booking.save();
         
         const points = await awardLoyaltyPoints(req.user.id);
         
+        // --- SEND RESPONSE IMMEDIATELY ---
         res.status(200).json({ success: true, data: booking, message: `Payment confirmed! You've earned ${points} loyalty points.` });
+
+        // --- SEND EMAIL NOTIFICATION FOR COD IN BACKGROUND ---
+        try {
+            const emailHtml = `
+                <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                    <div style="text-align: center; padding: 20px; background-color: #f8f8f8;">
+                        <img src="cid:logo" alt="MotoFix Logo" style="width: 150px;"/>
+                        <h2 style="color: #2c3e50;">Booking Confirmed!</h2>
+                    </div>
+                    <div style="padding: 20px;">
+                        <p>Dear ${booking.customer.fullName},</p>
+                        <p>Your booking <strong>#${booking._id}</strong> for <strong>${booking.serviceType}</strong> on <strong>${new Date(booking.date).toLocaleDateString()}</strong> has been confirmed.</p>
+                        <p>Please pay <strong>Rs. ${booking.finalAmount}</strong> upon service completion.</p>
+                        <p>Payment Method: <strong>Cash on Delivery (COD)</strong></p>
+                        <p>Thank you for choosing MotoFix!</p>
+                    </div>
+                    <hr/>
+                    <p style="font-size: 0.8em; color: #777; text-align: center;">This is an automated email. Please do not reply.</p>
+                </div>
+            `;
+            const attachments = [{
+                filename: 'logo.png',
+                path: 'https://i.imgur.com/gQf5jY8.png',
+                cid: 'logo'
+            }];
+            await sendEmail(booking.customer.email, 'Your MotoFix Booking is Confirmed!', emailHtml, attachments);
+        } catch(emailError) {
+            console.error("Error sending COD confirmation email:", emailError);
+        }
+        // --- END OF EMAIL NOTIFICATION ---
+
     } catch (error) {
         console.error(error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        if(!res.headersSent) {
+            res.status(500).json({ success: false, message: 'Server Error' });
+        }
     }
 };
 
 /**
- * @desc    Verify a Khalti payment
- * @route   POST /api/user/bookings/verify-khalti
- * @access  Private
+ * @desc      Verify a Khalti payment
+ * @route     POST /api/user/bookings/verify-khalti
+ * @access    Private
  */
-const verifyKhaltiPayment = async (req, res) => {
+export const verifyKhaltiPayment = async (req, res) => {
     const { token, amount, booking_id } = req.body;
     if (!token || !amount || !booking_id) return res.status(400).json({ success: false, message: 'Missing payment verification details.' });
 
@@ -191,7 +227,7 @@ const verifyKhaltiPayment = async (req, res) => {
         );
 
         if (khaltiResponse.data && khaltiResponse.data.idx) {
-            const booking = await Booking.findById(booking_id);
+            const booking = await Booking.findById(booking_id).populate('customer', 'fullName email');
             if (!booking) return res.status(404).json({ success: false, message: 'Booking not found after payment.' });
             if (booking.isPaid) return res.status(400).json({ success: false, message: 'Booking is already paid.' });
 
@@ -202,22 +238,56 @@ const verifyKhaltiPayment = async (req, res) => {
             
             const points = await awardLoyaltyPoints(req.user.id);
 
-            return res.status(200).json({ success: true, message: `Payment successful! You've earned ${points} loyalty points.` });
+            // --- SEND RESPONSE IMMEDIATELY ---
+            res.status(200).json({ success: true, message: `Payment successful! You've earned ${points} loyalty points.` });
+
+            // --- SEND EMAIL NOTIFICATION FOR KHALTI IN BACKGROUND ---
+            try {
+                const emailHtml = `
+                    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                        <div style="text-align: center; padding: 20px; background-color: #f8f8f8;">
+                            <img src="cid:logo" alt="MotoFix Logo" style="width: 150px;"/>
+                            <h2 style="color: #2c3e50;">Payment Successful!</h2>
+                        </div>
+                        <div style="padding: 20px;">
+                            <p>Dear ${booking.customer.fullName},</p>
+                            <p>Your payment for booking <strong>#${booking._id}</strong> has been successfully processed.</p>
+                            <p>Your appointment for <strong>${booking.serviceType}</strong> on <strong>${new Date(booking.date).toLocaleDateString()}</strong> is confirmed.</p>
+                            <p>Total Amount Paid: <strong>Rs. ${booking.finalAmount}</strong></p>
+                            <p>Thank you for choosing MotoFix!</p>
+                        </div>
+                        <hr/>
+                        <p style="font-size: 0.8em; color: #777; text-align: center;">This is an automated email. Please do not reply.</p>
+                    </div>
+                `;
+                const attachments = [{
+                    filename: 'logo.png',
+                    path: 'https://pplx-res.cloudinary.com/image/upload/v1751135827/gpt4o_images/pdlz3nvtduzpqhnkuova.png',
+                    cid: 'logo'
+                }];
+                await sendEmail(booking.customer.email, 'Your MotoFix Booking is Confirmed!', emailHtml, attachments);
+            } catch (emailError) {
+                console.error("Error sending Khalti success email:", emailError);
+            }
+            // --- END OF EMAIL NOTIFICATION ---
+
         } else {
             return res.status(400).json({ success: false, message: 'Khalti payment verification failed.' });
         }
     } catch (error) {
         console.error('Khalti verification error:', error.response ? error.response.data : error.message);
-        res.status(500).json({ success: false, message: 'Server error during Khalti verification.' });
+        if(!res.headersSent) {
+            res.status(500).json({ success: false, message: 'Server error during Khalti verification.' });
+        }
     }
 };
 
 /**
- * @desc    Apply a 20% loyalty discount to a booking
- * @route   PUT /api/user/bookings/:id/apply-discount
- * @access  Private
+ * @desc      Apply a loyalty discount to a booking
+ * @route     PUT /api/user/bookings/:id/apply-discount
+ * @access    Private
  */
-const applyLoyaltyDiscount = async (req, res) => {
+export const applyLoyaltyDiscount = async (req, res) => {
     try {
         const booking = await Booking.findById(req.params.id);
         const user = await User.findById(req.user.id);
@@ -252,15 +322,4 @@ const applyLoyaltyDiscount = async (req, res) => {
         console.error('Error applying discount:', error);
         res.status(500).json({ success: false, message: 'Server Error' });
     }
-};
-
-
-module.exports = {
-    getUserBookings,
-    createBooking,
-    updateUserBooking,
-    deleteUserBooking,
-    confirmPayment,
-    verifyKhaltiPayment,
-    applyLoyaltyDiscount
 };
