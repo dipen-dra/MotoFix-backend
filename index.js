@@ -1,6 +1,3 @@
-
-
-// index.js
 require('dotenv').config();
 
 const express = require('express');
@@ -9,8 +6,8 @@ const path = require('path');
 const connectDB = require('./config/db');
 const esewaRoute = require('./routes/esewaRoute');
 
-
-
+// --- Import the new chatbot routes ---
+const chatbotRoutes = require('./routes/chatbotRoute');
 
 // Initialize Express app
 const app = express();
@@ -38,12 +35,15 @@ app.use('/api/admin/services', require('./routes/admin/serviceRoute'));
 app.use('/api/admin/profile', require('./routes/admin/profileRoute'));
 app.use('/api/admin/dashboard', require('./routes/admin/dashboardRoute'));
 
-// --- NEW: User Dashboard Routes ---
+// --- User Routes ---
 app.use('/api/user', require('./routes/user/dashboardRoute'));
 app.use('/api/user', require('./routes/user/bookingRoute'));
 app.use('/api/user', require('./routes/user/serviceRoute'));
 app.use('/api/user', require('./routes/user/profileRoute'));
 app.use('/api/payment/esewa', esewaRoute);
+
+// --- NEW: Chatbot Routes ---
+app.use('/api/chatbot', chatbotRoutes);
 
 // Define the port
 const PORT = process.env.PORT || 5050;
