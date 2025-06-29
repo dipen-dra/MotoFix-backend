@@ -65,6 +65,10 @@ const BookingSchema = new Schema(
         isPaid: {
             type: Boolean,
             default: false
+        },
+        pointsAwarded: {
+            type: Number,
+            default: 0
         }
     },
     { timestamps: true }
