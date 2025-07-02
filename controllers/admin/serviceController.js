@@ -1,6 +1,34 @@
 const Service = require("../../models/Service");
 
-// Create a new service
+// Get all services with pagination
+exports.getServices = async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 6; // Default to 6 for card layout
+        const skip = (page - 1) * limit;
+
+        // No search functionality needed for services as per frontend design, but can be added here if needed.
+        const query = {};
+
+        const totalItems = await Service.countDocuments(query);
+        const services = await Service.find(query)
+            .sort({ createdAt: -1 })
+            .limit(limit)
+            .skip(skip);
+
+        res.status(200).json({
+            success: true,
+            data: services,
+            totalPages: Math.ceil(totalItems / limit),
+            currentPage: page
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Server error.", error: error.message });
+    }
+};
+
+
+// --- UNCHANGED FUNCTIONS ---
 exports.createService = async (req, res) => {
     const { name, description, price, duration } = req.body;
     if (!name || !price) {
@@ -15,17 +43,6 @@ exports.createService = async (req, res) => {
     }
 };
 
-// Get all services
-exports.getServices = async (req, res) => {
-    try {
-        const services = await Service.find();
-        res.status(200).json({ success: true, data: services });
-    } catch (error) {
-        res.status(500).json({ success: false, message: "Server error.", error: error.message });
-    }
-};
-
-// Update a service
 exports.updateService = async (req, res) => {
     try {
         const updatedService = await Service.findByIdAndUpdate(req.params.id, req.body, { new: true });
@@ -38,7 +55,6 @@ exports.updateService = async (req, res) => {
     }
 };
 
-// Delete a service
 exports.deleteService = async (req, res) => {
     try {
         const service = await Service.findByIdAndDelete(req.params.id);
