@@ -1,64 +1,3 @@
-// require('dotenv').config();
-
-// const express = require('express');
-// const cors = require('cors');
-// const path = require('path');
-// const connectDB = require('./config/db');
-// const esewaRoute = require('./routes/esewaRoute');
-
-// // --- Import the new chatbot routes ---
-// const chatbotRoutes = require('./routes/chatbotRoute');
-
-// // Initialize Express app
-// const app = express();
-
-// // Connect to the database
-// connectDB();
-
-// // Middlewares
-// app.use(cors()); // Use cors to allow cross-origin requests
-// app.use(express.json()); // To parse JSON bodies
-// app.use(express.urlencoded({ extended: false })); // To parse URL-encoded bodies
-
-// // Serve static files from the 'uploads' directory
-// app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-// // --- API Routes ---
-
-// // Authentication Routes (for both user and admin login/registration)
-// app.use('/api/auth', require('./routes/userRoute')); // This handles /api/register, /api/login
-
-// // Admin Routes
-// app.use('/api/admin/users', require('./routes/admin/adminUserRoute'));
-// app.use('/api/admin/bookings', require('./routes/admin/bookingRoute'));
-// app.use('/api/admin/services', require('./routes/admin/serviceRoute'));
-// app.use('/api/admin/profile', require('./routes/admin/profileRoute'));
-// app.use('/api/admin/dashboard', require('./routes/admin/dashboardRoute'));
-
-// // --- User Routes ---
-// app.use('/api/user', require('./routes/user/dashboardRoute'));
-// app.use('/api/user', require('./routes/user/bookingRoute'));
-// app.use('/api/user', require('./routes/user/serviceRoute'));
-// app.use('/api/user', require('./routes/user/profileRoute'));
-// app.use('/api/payment/esewa', esewaRoute);
-
-// // --- NEW: Chatbot Routes ---
-// app.use('/api/chatbot', chatbotRoutes);
-
-// // Define the port
-// const PORT = process.env.PORT || 5050;
-
-// // Start the server
-// app.listen(PORT, () => {
-//     console.log(`Server is running on port ${PORT}`);
-// });
-
-
-
-
-
-// motofix-backend/index.js
-
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -68,6 +7,9 @@ const { Server } = require("socket.io");
 const connectDB = require('./config/db');
 const esewaRoute = require('./routes/esewaRoute');
 const Message = require('./models/Message');
+const { getChatUsers } = require('./controllers/admin/chatController');
+// 💡 Correctly import the middleware functions by their exported names
+const { authenticateUser, isAdmin } = require('./middlewares/authorizedUser');
 
 const app = express();
 const server = http.createServer(app);
@@ -76,7 +18,7 @@ connectDB();
 
 const io = new Server(server, {
     cors: {
-        origin: "http://localhost:5173", // Adjust to your frontend's URL
+        origin: "http://localhost:5173",
         methods: ["GET", "POST"]
     }
 });
@@ -86,33 +28,36 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// API Routes
+// --- API Routes ---
 app.use('/api/auth', require('./routes/userRoute'));
 app.use('/api/admin/users', require('./routes/admin/adminUserRoute'));
 app.use('/api/admin/bookings', require('./routes/admin/bookingRoute'));
 app.use('/api/admin/services', require('./routes/admin/serviceRoute'));
 app.use('/api/admin/profile', require('./routes/admin/profileRoute'));
 app.use('/api/admin/dashboard', require('./routes/admin/dashboardRoute'));
+
+// 💡 Use the correct middleware function names in the route definition
+app.get('/api/admin/chat/users', authenticateUser, isAdmin, getChatUsers);
+
 app.use('/api/user', require('./routes/user/dashboardRoute'));
 app.use('/api/user', require('./routes/user/bookingRoute'));
 app.use('/api/user', require('./routes/user/serviceRoute'));
 app.use('/api/user', require('./routes/user/profileRoute'));
 app.use('/api/payment/esewa', esewaRoute);
 
-// Real-time Chat Logic
+// --- Real-time Chat Logic ---
 io.on('connection', (socket) => {
-    console.log(`✅ User Connected: ${socket.id}`);
+    // console.log(`✅ User Connected: ${socket.id}`);
 
     socket.on('join_room', async (roomName) => {
         socket.join(roomName);
-        console.log(`User ${socket.id} joined room: ${roomName}`);
+        console.log(`User ${socket.id} joined private room: ${roomName}`);
 
-        // 💡 FETCH AND EMIT CHAT HISTORY
         try {
-            const history = await Message.find({ room: roomName }).sort({ timestamp: 1 }).limit(50);
+            const history = await Message.find({ room: roomName }).sort({ timestamp: 1 }).limit(100);
             socket.emit('chat_history', history);
         } catch (error) {
-            console.error("Error fetching chat history:", error);
+            console.error(`Error fetching chat history for room ${roomName}:`, error);
         }
     });
 
@@ -120,6 +65,7 @@ io.on('connection', (socket) => {
         const message = new Message({
             room: data.room,
             author: data.author,
+            authorId: data.authorId,
             message: data.message,
         });
         await message.save();
@@ -127,7 +73,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-        console.log(`❌ User Disconnected: ${socket.id}`);
+        // console.log(`❌ User Disconnected: ${socket.id}`);
     });
 });
 
