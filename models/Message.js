@@ -1,3 +1,5 @@
+// models/Message.js
+
 const mongoose = require('mongoose');
 
 const messageSchema = new mongoose.Schema({
@@ -14,15 +16,27 @@ const messageSchema = new mongoose.Schema({
     required: true 
   },
   message: { 
-    type: String, 
-    required: true 
+    type: String,
+    // A text message is only required if a file is NOT being sent.
+    required: function() {
+        return !this.fileUrl;
+    }
   },
+  // --- NEW FIELDS for file uploads ---
+  fileUrl: {
+    type: String
+  },
+  fileName: {
+    type: String
+  },
+  fileType: {
+    type: String
+  },
+  // --- END NEW FIELDS ---
   timestamp: { 
     type: Date, 
     default: Date.now 
   },
-  // 💡 --- NEW FIELD ---
-  // Tracks if the message has been read by the recipient.
   isRead: {
     type: Boolean,
     default: false
