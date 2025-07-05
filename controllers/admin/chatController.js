@@ -3,16 +3,25 @@
 const mongoose = require('mongoose');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs'); // 💡 1. Import the 'fs' module
 const Message = require('../../models/Message');
 const User = require('../../models/User');
 
 // --- Multer Configuration for File Uploads ---
+
+// 💡 2. Define the upload path as a variable
+const uploadDir = 'uploads/chat';
+
+// 💡 3. Check if the directory exists, and create it if it doesn't
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, 'uploads/chat/'); // Ensure this 'uploads/chat' directory exists in your project root
+        cb(null, uploadDir); // 💡 4. Use the variable here
     },
     filename: function (req, file, cb) {
-        // Create a unique filename to prevent overwrites
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
     }
@@ -22,10 +31,9 @@ const upload = multer({
     storage: storage,
     limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB file size limit
     fileFilter: function (req, file, cb) {
-        // You can add more specific file type checks here if needed
         cb(null, true);
     }
-}).single('file'); // 'file' should match the key in your FormData
+}).single('file');
 
 // @desc    Upload a file to a chat room
 // @route   POST /api/admin/chat/upload and /api/user/chat/upload
@@ -40,13 +48,12 @@ const uploadChatFile = (req, res) => {
             return res.status(400).json({ message: 'No file was uploaded.' });
         }
         
-        // At this point, the file is successfully uploaded. Now, create a message record.
         const { room, author, authorId, message } = req.body;
         if (!room || !author || !authorId) {
             return res.status(400).json({ message: 'Missing required chat information.' });
         }
 
-        const io = req.app.get('socketio'); // Get the io instance from the app
+        const io = req.app.get('socketio');
 
         try {
             const fileUrl = `${req.protocol}://${req.get('host')}/uploads/chat/${req.file.filename}`;
@@ -55,7 +62,7 @@ const uploadChatFile = (req, res) => {
                 room,
                 author,
                 authorId,
-                message, // This is the optional caption/text
+                message, 
                 fileUrl,
                 fileName: req.file.originalname,
                 fileType: req.file.mimetype,
@@ -64,10 +71,8 @@ const uploadChatFile = (req, res) => {
 
             await fileMessage.save();
             
-            // Broadcast the file message to the entire room, including the sender
             io.to(room).emit('receive_message', fileMessage);
             
-            // Also send a generic notification for UI updates
             io.to(room).emit('new_message_notification', {
                 room: room,
                 authorId: authorId,
@@ -114,7 +119,6 @@ const getChatUsers = async (req, res) => {
                 $project: {
                     _id: 0,
                     room: '$_id',
-                    // UPDATED: Show file info in last message preview
                     lastMessage: { 
                         $ifNull: [
                             "$lastMessageDoc.message", 
