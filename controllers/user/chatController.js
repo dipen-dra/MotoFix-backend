@@ -1,3 +1,5 @@
+// controllers/user/chatController.js
+
 const Message = require('../../models/Message');
 
 // @desc    Get the count of unread messages for the logged-in user.
@@ -12,7 +14,7 @@ const getUnreadCount = async (req, res) => {
         const count = await Message.countDocuments({
             room: roomName,
             isRead: false,
-            authorId: { $ne: userId } // Messages from admin
+            authorId: { $ne: userId } // Count messages from admin
         });
 
         res.json({ success: true, count });
