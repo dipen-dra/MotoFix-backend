@@ -1,5 +1,3 @@
-// server.js
-
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -7,25 +5,32 @@ const path = require('path');
 const http = require('http');
 const { Server } = require("socket.io");
 const connectDB = require('./config/db');
-const esewaRoute = require('./routes/esewaRoute');
 const Message = require('./models/Message');
-const { authenticateUser, isAdmin } = require('./middlewares/authorizedUser');
+
+// --- (Routes) ---
+const esewaRoute = require('./routes/esewaRoute');
+const geminiRoutes = require('./routes/gemini'); // Your Gemini route
+const adminChatRoutes = require('./routes/admin/chatRoute');
+const userChatRoutes = require('./routes/user/chatRoute');
 
 const app = express();
 const server = http.createServer(app);
 
+// Connect to Database
 connectDB();
 
+// Setup Socket.IO
 const io = new Server(server, {
     cors: {
-        origin: "http://localhost:5173",
-        methods: ["GET", "POST", "PUT", "DELETE"] // Allow all methods
+        origin: "http://localhost:5173", // Make sure this is your frontend's address
+        methods: ["GET", "POST", "PUT", "DELETE"]
     }
 });
 
-// --- Make io instance accessible to our routes ---
+// Make io instance accessible to our routes
 app.set('socketio', io);
 
+// --- (Middleware) ---
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
@@ -33,28 +38,25 @@ app.use(express.urlencoded({ extended: false }));
 // Make the 'uploads' directory publicly accessible
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// --- API Routes ---
+// --- (API Routes) ---
 app.use('/api/auth', require('./routes/userRoute'));
 app.use('/api/admin/users', require('./routes/admin/adminUserRoute'));
 app.use('/api/admin/bookings', require('./routes/admin/bookingRoute'));
 app.use('/api/admin/services', require('./routes/admin/serviceRoute'));
 app.use('/api/admin/profile', require('./routes/admin/profileRoute'));
 app.use('/api/admin/dashboard', require('./routes/admin/dashboardRoute'));
-
-// --- UPDATED CHAT ROUTES ---
-const adminChatRoutes = require('./routes/admin/chatRoute');
-const userChatRoutes = require('./routes/user/chatRoute'); // 💡 NEW
-
 app.use('/api/admin/chat', adminChatRoutes);
-app.use('/api/user/chat', userChatRoutes); // 💡 NEW - Using the dedicated user chat routes
 
 app.use('/api/user', require('./routes/user/dashboardRoute'));
 app.use('/api/user', require('./routes/user/bookingRoute'));
 app.use('/api/user', require('./routes/user/serviceRoute'));
 app.use('/api/user', require('./routes/user/profileRoute'));
-app.use('/api/payment/esewa', esewaRoute);
+app.use('/api/user/chat', userChatRoutes);
 
-// --- Real-time Chat Logic ---
+app.use('/api/payment/esewa', esewaRoute);
+app.use('/api/gemini', geminiRoutes); // Gemini API route
+
+// --- (Real-time Chat Logic with Socket.IO) ---
 io.on('connection', (socket) => {
     // console.log(`✅ User Connected: ${socket.id}`);
 
@@ -80,7 +82,6 @@ io.on('connection', (socket) => {
     });
 
     socket.on('send_message', async (data) => {
-        // This handler is now ONLY for text messages. File messages are handled via the API.
         if (!data.message || data.message.trim() === '') return;
 
         try {
@@ -93,7 +94,6 @@ io.on('connection', (socket) => {
             });
             await message.save();
             
-            // Emit to everyone in the room, including the sender to confirm it was sent
             io.to(data.room).emit('receive_message', message);
 
             io.to(data.room).emit('new_message_notification', {
