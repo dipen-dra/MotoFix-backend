@@ -23,7 +23,25 @@ const getUnreadCount = async (req, res) => {
         res.status(500).json({ success: false, message: 'Server error' });
     }
 };
+const clearChatForUser = async (req, res) => {
+    try {
+        const userId = req.user.id; // From authenticateUser middleware
+        const roomName = `chat-${userId}`;
+
+        // Mark all messages in the user's room as cleared for them
+        await Message.updateMany(
+            { room: roomName },
+            { $set: { clearedForUser: true } }
+        );
+
+        res.status(200).json({ success: true, message: 'Your chat history has been cleared.' });
+    } catch (error) {
+        console.error('Error clearing chat for user:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
 
 module.exports = {
-    getUnreadCount
+    getUnreadCount,
+    clearChatForUser
 };
