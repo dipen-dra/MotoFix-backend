@@ -4,7 +4,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticateUser } = require('../../middlewares/authorizedUser');
 const { uploadChatFile } = require('../../controllers/admin/chatController'); // Re-using this controller
-const { getUnreadCount } = require('../../controllers/user/ChatController');
+const { getUnreadCount } = require('../../controllers/user/chatController');
 
 // @route   GET /api/user/chat/unread-count
 // @desc    Get the number of unread messages for the logged-in user
