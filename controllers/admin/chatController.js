@@ -5,7 +5,7 @@ const fs = require('fs');
 const Message = require('../../models/Message');
 const User = require('../../models/User');
 
-// --- Multer Configuration for File Uploads ---
+// --- Multer Configuration for File Uploads (no change) ---
 const uploadDir = 'uploads/chat';
 
 if (!fs.existsSync(uploadDir)) {
@@ -22,7 +22,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } }).single('file');
 
-// @desc    Upload a file to a chat room
+// @desc    Upload a file to a chat room (no change)
 const uploadChatFile = (req, res) => {
     upload(req, res, async (err) => {
         if (err) return res.status(400).json({ message: `File upload error: ${err.message}` });
@@ -37,7 +37,7 @@ const uploadChatFile = (req, res) => {
             const fileMessage = new Message({ room, author, authorId, message, fileUrl, fileName: req.file.originalname, fileType: req.file.mimetype, isRead: false });
             await fileMessage.save();
             
-            io.to(room).emit('receive_message', fileMessage);
+            io.to(room).emit('receive_message', fileMessage.toObject()); // Use .toObject() to ensure virtuals/timestamps are included
             io.to(room).emit('new_message_notification', { room, authorId, message: message || `Sent a ${req.file.mimetype.split('/')[0]}` });
             res.status(201).json({ success: true, message: 'File sent successfully.' });
         } catch (error) {
@@ -46,25 +46,34 @@ const uploadChatFile = (req, res) => {
     });
 };
 
-// @desc    Get a list of users who have sent messages for the admin panel
+// @desc    Get a list of users who have sent messages for the admin panel (UPDATED)
 const getChatUsers = async (req, res) => {
     try {
         const pipeline = [
-            // Filter out messages cleared by the admin
-            { $match: { clearedForAdmin: { $ne: true } } },
-            { $sort: { timestamp: -1 } },
+            // Stage 1: Filter to get ONLY user messages that are not cleared by admin.
+            { 
+                $match: { 
+                    clearedForAdmin: { $ne: true },
+                    authorId: { $ne: 'admin_user' } 
+                } 
+            },
+            // Stage 2: Sort by the correct 'createdAt' field to find the most recent user message.
+            { $sort: { createdAt: -1 } },
+            
+            // Stage 3: Group by room to get the single latest message for each conversation.
             {
                 $group: {
                     _id: '$room',
                     lastMessageDoc: { $first: '$$ROOT' },
-                    unreadCount: { $sum: { $cond: [{ $and: [{ $eq: ['$isRead', false] }, { $ne: ['$authorId', 'admin_user'] }] }, 1, 0] } }
+                    unreadCount: { $sum: { $cond: [{ $eq: ['$isRead', false] }, 1, 0] } }
                 }
             },
             {
                 $project: {
-                    _id: 0, room: '$_id',
+                    _id: 0, 
+                    room: '$_id',
                     lastMessage: { $ifNull: ["$lastMessageDoc.message", { $concat: ["Sent a ", { $arrayElemAt: [{ $split: ["$lastMessageDoc.fileType", "/"] }, 0] }] }] },
-                    lastMessageTimestamp: '$lastMessageDoc.timestamp',
+                    lastMessageTimestamp: '$lastMessageDoc.createdAt', // Use the correct field
                     unreadCount: 1,
                     userId: { $arrayElemAt: [{ $split: ['$_id', '-'] }, 1] }
                 }
@@ -76,21 +85,27 @@ const getChatUsers = async (req, res) => {
             { $unwind: '$userDetails' },
             {
                 $project: {
-                    _id: '$userDetails._id', fullName: '$userDetails.fullName', email: '$userDetails.email',
-                    profilePicture: '$userDetails.profilePicture', lastMessage: { $ifNull: ['$lastMessage', 'No messages yet.'] },
-                    lastMessageTimestamp: 1, unreadCount: 1
+                    _id: '$userDetails._id', 
+                    fullName: '$userDetails.fullName', 
+                    email: '$userDetails.email',
+                    profilePicture: '$userDetails.profilePicture', 
+                    lastMessage: { $ifNull: ['$lastMessage', 'No messages yet.'] },
+                    lastMessageTimestamp: 1, 
+                    unreadCount: 1
                 }
             },
+            // Final sort by the correct timestamp.
             { $sort: { lastMessageTimestamp: -1 } }
         ];
         const conversations = await Message.aggregate(pipeline);
         res.json({ success: true, data: conversations });
     } catch (error) {
+        console.error("Error fetching chat users:", error);
         res.status(500).json({ success: false, message: 'Server error while fetching chat users.' });
     }
 };
 
-// @desc    Clear chat history from the ADMIN's view.
+// @desc    Clear chat history from the ADMIN's view (no change)
 const clearChatForAdmin = async (req, res) => {
     try {
         const { userId } = req.params;
