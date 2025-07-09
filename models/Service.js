@@ -16,6 +16,9 @@ const serviceSchema = new mongoose.Schema({
         type: Number,
         required: [true, "Service price is required."]
     },
+    duration: {
+            type: String
+        },
     // --- NEW FIELD ADDED ---
     image: {
         type: String, // We will store the path to the image
