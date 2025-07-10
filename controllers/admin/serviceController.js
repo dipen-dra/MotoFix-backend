@@ -26,17 +26,13 @@ exports.getServices = async (req, res) => {
     }
 };
 
-// --- UPDATED FUNCTIONS ---
-
 // CREATE a new service with an image and duration
 exports.createService = async (req, res) => {
-    // UPDATED: Destructure `duration` along with other fields from the request body.
     const { name, description, price, duration } = req.body;
 
     if (!req.file) {
         return res.status(400).json({ success: false, message: "Service image is required." });
     }
-
     if (!name || !price) {
         fs.unlinkSync(req.file.path);
         return res.status(400).json({ success: false, message: "Name and price are required." });
@@ -47,7 +43,7 @@ exports.createService = async (req, res) => {
             name,
             description,
             price,
-            duration, // UPDATED: Include duration when creating the new service document.
+            duration,
             image: req.file.path
         });
         await newService.save();
@@ -69,17 +65,13 @@ exports.updateService = async (req, res) => {
             return res.status(404).json({ success: false, message: "Service not found." });
         }
 
-        // UPDATED: Explicitly pull all fields from the body for clarity and robustness.
         const { name, description, price, duration } = req.body;
         const updateData = { name, description, price, duration };
 
-        // If a new image is uploaded...
         if (req.file) {
-            // ...delete the old image from the server
             if (service.image && fs.existsSync(service.image)) {
                 fs.unlinkSync(service.image);
             }
-            // ...and set the path for the new image.
             updateData.image = req.file.path;
         }
 
@@ -109,5 +101,33 @@ exports.deleteService = async (req, res) => {
         res.status(200).json({ success: true, message: "Service deleted successfully." });
     } catch (error) {
         res.status(500).json({ success: false, message: "Server error.", error: error.message });
+    }
+};
+
+// ===============================================
+// THIS IS THE NEW FUNCTION YOU NEED TO ADD
+// ===============================================
+/**
+ * @desc    Get a single service with all its reviews populated with user details.
+ * @route   GET /api/admin/services/:id/reviews
+ * @access  Private (Admin)
+ */
+exports.getServiceWithReviews = async (req, res) => {
+    try {
+        const service = await Service.findById(req.params.id)
+            .populate({
+                path: 'reviews.user', // Go into the reviews array, find the user field
+                select: 'fullName profilePicture' // And select these fields from the User model
+            });
+
+        if (!service) {
+            return res.status(404).json({ success: false, message: 'Service not found' });
+        }
+
+        res.status(200).json({ success: true, data: service });
+
+    } catch (error) {
+        console.error('Error fetching service with reviews for admin:', error);
+        res.status(500).json({ success: false, message: 'Server Error' });
     }
 };
