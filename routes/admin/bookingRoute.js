@@ -1,12 +1,19 @@
-import express from 'express';
-import {
+// routes/admin/bookingRoute.js (Corrected)
+
+// --- CORRECTED: Use require ---
+const express = require('express');
+
+// --- CORRECTED: Use require to get the controller functions ---
+const {
     getAllBookings,
     getBookingById,
     deleteBooking,
     updateBooking,
-    generateBookingInvoice // <-- Import the new function
-} from '../../controllers/admin/bookingController.js';
-import { authenticateUser, isAdmin } from '../../middlewares/authorizedUser.js'; // Assuming you have an isAdmin middleware
+    generateBookingInvoice // <-- Your new function is correctly imported
+} = require('../../controllers/admin/bookingController.js');
+
+// --- CORRECTED: Use require for middleware ---
+const { authenticateUser, isAdmin } = require('../../middlewares/authorizedUser.js');
 
 const router = express.Router();
 
@@ -20,7 +27,7 @@ router.route('/')
     .get(getAllBookings);
 
 // --- NEW INVOICE ROUTE ---
-// This must come BEFORE the general '/:id' route
+// This order is correct: The specific '/invoice' route comes BEFORE the general '/:id' route
 router.route('/:id/invoice')
     .get(generateBookingInvoice);
 
@@ -30,4 +37,5 @@ router.route('/:id')
     .put(updateBooking)
     .delete(deleteBooking);
 
-export default router;
+// --- CORRECTED: Use module.exports ---
+module.exports = router;

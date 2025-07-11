@@ -1,19 +1,17 @@
-/**
-@file controllers/admin/bookingController.js
-@description Controller for admin-facing booking management, now with PDF invoice generation.
-*/
-import Booking from '../../models/Booking.js';
-import User from '../../models/User.js';
-import sendEmail from '../../utils/sendEmail.js';
-// --- NEW IMPORTS FOR PDF GENERATION ---
-import puppeteer from 'puppeteer';
-import { getInvoiceHTML } from '../../utils/invoiceTemplate.js'; // You need this model to get workshop details
+// controllers/admin/bookingController.js (Corrected)
+
+// --- CORRECTED: Use require for all imports ---
+const Booking = require('../../models/Booking.js');
+const User = require('../../models/User.js');
+const sendEmail = require('../../utils/sendEmail.js');
+const puppeteer = require('puppeteer');
+const { getInvoiceHTML } = require('../../utils/invoiceTemplate.js');
 
 const SUCCESS_ICON_URL = 'https://cdn.vectorstock.com/i/500p/20/36/3d-green-check-icon-tick-mark-symbol-vector-56142036.jpg';
 const CANCEL_ICON_URL = 'https://media.istockphoto.com/id/1132722548/vector/round-red-x-mark-line-icon-button-cross-symbol-on-white-background.jpg?s=612x612&w=0&k=20&c=QnHlhWesKpmbov2MFn2yAMg6oqDS8YXmC_iDsPK_BXQ=';
 
-// This function remains the same, correctly hiding all archived bookings.
-export const getAllBookings = async (req, res) => {
+// --- CORRECTED: Use exports.functionName syntax ---
+exports.getAllBookings = async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 12;
@@ -25,7 +23,7 @@ export const getAllBookings = async (req, res) => {
             matchQuery.$or = [
                 { 'customer.fullName': { $regex: search, $options: 'i' } },
                 { 'serviceType': { $regex: search, $options: 'i' } },
-                { 'bikeModel': { $regex: search, $options: 'i' } } // Search by bikeModel
+                { 'bikeModel': { $regex: search, $options: 'i' } }
             ];
         }
 
@@ -54,8 +52,7 @@ export const getAllBookings = async (req, res) => {
     }
 };
 
-// This function remains the same.
-export const getBookingById = async (req, res) => {
+exports.getBookingById = async (req, res) => {
     try {
         const booking = await Booking.findById(req.params.id).populate('customer', 'fullName email phone address');
         if (!booking) {
@@ -68,8 +65,8 @@ export const getBookingById = async (req, res) => {
     }
 };
 
-// This function remains the same.
-export const updateBooking = async (req, res) => {
+exports.updateBooking = async (req, res) => {
+    // This function logic is correct and does not need changes
     try {
         const { status, totalCost } = req.body;
         const booking = await Booking.findById(req.params.id).populate('customer', 'fullName email');
@@ -93,7 +90,6 @@ export const updateBooking = async (req, res) => {
         if (totalCost !== undefined) {
             booking.totalCost = totalCost;
             if (booking.discountApplied) {
-                // Assuming a fixed 20% discount for this calculation. Adjust if needed.
                 booking.finalAmount = totalCost - (totalCost * 0.20);
             } else {
                 booking.finalAmount = totalCost;
@@ -118,7 +114,7 @@ export const updateBooking = async (req, res) => {
         res.json({ success: true, data: updatedBookingWithPopulation, message: "Booking updated successfully." });
 
         if (statusChanged && booking.customer && status === 'Completed') {
-            try {
+             try {
                 const emailHtml = `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;"> <div style="text-align: center; padding: 20px; background-color: #f8f8f8;"> <img src="${SUCCESS_ICON_URL}" alt="Success Icon" style="width: 80px;"/> <h2 style="color: #27ae60;">Your Service is Complete!</h2> </div> <div style="padding: 20px;"> <p>Dear ${booking.customer.fullName},</p> <p>We are pleased to inform you that your booking <strong>#${booking._id}</strong> for <strong>${booking.serviceType}</strong> has been marked as <strong>Completed</strong>.</p> <p>We hope you are satisfied with our service. Please feel free to provide any feedback.</p> <p>Thank you again for choosing MotoFix!</p> </div> <hr/> <p style="font-size: 0.8em; color: #777; text-align: center;">This is an automated email. Please do not reply.</p> </div>`;
                 sendEmail(booking.customer.email, 'Your MotoFix Service is Complete!', emailHtml)
                     .catch(err => console.error('Error sending completion email:', err));
@@ -134,11 +130,8 @@ export const updateBooking = async (req, res) => {
     }
 };
 
-/**
- * @description Archives a booking. If status is 'Pending' or 'In Progress', it's also set to 'Cancelled'.
- * If status is 'Completed', it's only archived.
- */
-export const deleteBooking = async (req, res) => {
+exports.deleteBooking = async (req, res) => {
+    // This function logic is correct and does not need changes
     try {
         const booking = await Booking.findById(req.params.id).populate('customer', 'fullName email loyaltyPoints');
         if (!booking) {
@@ -199,17 +192,10 @@ export const deleteBooking = async (req, res) => {
     }
 };
 
-// --- NEW FUNCTION FOR PDF INVOICE GENERATION ---
-/**
- * @description Generates and sends a PDF invoice for a specific booking.
- * @route   GET /api/admin/bookings/:id/invoice
- * @access  Private (Admin)
- */
-
-export const generateBookingInvoice = async (req, res) => {
+// --- NEW FUNCTION, with corrected `exports` syntax ---
+exports.generateBookingInvoice = async (req, res) => {
     try {
         const booking = await Booking.findById(req.params.id)
-            // --- UPDATED: Added 'address' to the populate call ---
             .populate('customer', 'fullName email phone address'); 
 
         if (!booking) {
@@ -256,55 +242,3 @@ export const generateBookingInvoice = async (req, res) => {
         res.status(500).json({ success: false, message: 'Server error while generating invoice.' });
     }
 };
-// export const generateBookingInvoice = async (req, res) => {
-//     try {
-//         const booking = await Booking.findById(req.params.id)
-//             .populate('customer', 'fullName email phone');
-
-//         if (!booking) {
-//             return res.status(404).json({ success: false, message: 'Booking not found.' });
-//         }
-        
-//         if (!booking.isPaid) {
-//             return res.status(400).json({ success: false, message: 'Cannot generate an invoice for an unpaid booking.' });
-//         }
-
-//         // --- THE FIX ---
-//         // Instead of looking for AdminProfile, we find the user with the 'admin' role.
-//         const workshopAdmin = await User.findOne({ role: 'admin' });
-        
-//         if (!workshopAdmin) {
-//             return res.status(500).json({ success: false, message: 'Admin user profile not found. Cannot generate invoice.' });
-//         }
-
-//         // Use the details from the admin's user document
-//         const workshopDetails = {
-//             name: workshopAdmin.workshopName || workshopAdmin.fullName, // Assumes you have a 'workshopName' field on your User model for the admin
-//             address: workshopAdmin.address || 'Address Not Set',
-//             phone: workshopAdmin.phone || 'Phone Not Set'
-//         };
-
-//         const htmlContent = getInvoiceHTML(booking, workshopDetails);
-
-//         const browser = await puppeteer.launch({ 
-//             headless: true,
-//             args: ['--no-sandbox', '--disable-setuid-sandbox'] 
-//         });
-//         const page = await browser.newPage();
-//         await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-//         const pdfBuffer = await page.pdf({ 
-//             format: 'A4', 
-//             printBackground: true,
-//             margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' }
-//         });
-//         await browser.close();
-
-//         res.setHeader('Content-Type', 'application/pdf');
-//         res.setHeader('Content-Disposition', `attachment; filename=invoice-${booking._id}.pdf`);
-//         res.send(pdfBuffer);
-
-//     } catch (error) {
-//         console.error('Error generating PDF invoice:', error);
-//         res.status(500).json({ success: false, message: 'Server error while generating invoice.' });
-//     }
-// };

@@ -1,13 +1,16 @@
-// --- FIX: Changed from require to import ---
-import Booking from '../../models/Booking.js';
-import User from '../../models/User.js';
+// controllers/admin/dashboardController.js (Corrected)
 
-export const getAnalytics = async (req, res) => {
+// --- CORRECTED: Use require ---
+const Booking = require('../../models/Booking.js');
+const User = require('../../models/User.js');
+
+// --- CORRECTED: Use exports.functionName syntax ---
+exports.getAnalytics = async (req, res) => {
     try {
-        // --- FIX: Removed stray 'a' character ---
+        // --- NOTE: Removed a stray 'a' character that was in your provided code here ---
         const totalRevenue = await Booking.aggregate([
-            { $match: { status: 'Completed', isPaid: true } }, // Also ensure revenue is from paid bookings
-            { $group: { _id: null, total: { $sum: "$finalAmount" } } } // Use finalAmount to account for discounts
+            { $match: { status: 'Completed', isPaid: true } },
+            { $group: { _id: null, total: { $sum: "$finalAmount" } } }
         ]);
 
         const totalBookings = await Booking.countDocuments({ isPaid: true });
