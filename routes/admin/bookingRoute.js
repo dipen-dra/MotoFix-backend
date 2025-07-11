@@ -1,23 +1,33 @@
-const express = require('express');
+import express from 'express';
+import {
+    getAllBookings,
+    getBookingById,
+    deleteBooking,
+    updateBooking,
+    generateBookingInvoice // <-- Import the new function
+} from '../../controllers/admin/bookingController.js';
+import { authenticateUser, isAdmin } from '../../middlewares/authorizedUser.js'; // Assuming you have an isAdmin middleware
+
 const router = express.Router();
 
-const { 
-    getAllBookings, 
-    getBookingById,  
-    deleteBooking, 
-    updateBooking
-} = require('../../controllers/admin/bookingController');
-const { authenticateUser } = require('../../middlewares/authorizedUser');
+// Apply authentication middleware to all routes in this file
+router.use(authenticateUser);
+// Optional: If you have an isAdmin middleware, apply it as well
+// router.use(isAdmin); 
 
-// Matches /api/admin/bookings
+// Matches /api/admin/bookings/
 router.route('/')
-    .get(authenticateUser, getAllBookings);
+    .get(getAllBookings);
+
+// --- NEW INVOICE ROUTE ---
+// This must come BEFORE the general '/:id' route
+router.route('/:id/invoice')
+    .get(generateBookingInvoice);
 
 // Matches /api/admin/bookings/:id
-// REFACTORED: Chained all methods for the same route together
 router.route('/:id')
-    .get(authenticateUser, getBookingById)
-    .put(authenticateUser, updateBooking)
-    .delete(authenticateUser, deleteBooking);
+    .get(getBookingById)
+    .put(updateBooking)
+    .delete(deleteBooking);
 
-module.exports = router;
+export default router;

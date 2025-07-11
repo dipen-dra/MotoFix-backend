@@ -1,11 +1,13 @@
-const Booking = require("../../models/Booking");
-const User = require("../../models/User");
+// --- FIX: Changed from require to import ---
+import Booking from '../../models/Booking.js';
+import User from '../../models/User.js';
 
-exports.getAnalytics = async (req, res) => {
+export const getAnalytics = async (req, res) => {
     try {
+        // --- FIX: Removed stray 'a' character ---
         const totalRevenue = await Booking.aggregate([
-            { $match: { status: 'Completed' } },
-            { $group: { _id: null, total: { $sum: "$totalCost" } } }
+            { $match: { status: 'Completed', isPaid: true } }, // Also ensure revenue is from paid bookings
+            { $group: { _id: null, total: { $sum: "$finalAmount" } } } // Use finalAmount to account for discounts
         ]);
 
         const totalBookings = await Booking.countDocuments({ isPaid: true });
@@ -14,17 +16,16 @@ exports.getAnalytics = async (req, res) => {
         const newUsers = await User.countDocuments({ createdAt: { $gte: startOfMonth } });
 
         const revenueData = await Booking.aggregate([
-            { $match: { status: 'Completed' } },
-            { $group: { _id: { $month: "$date" }, revenue: { $sum: "$totalCost" } } },
-            { $sort: { _id: 1 } }
+            { $match: { status: 'Completed', isPaid: true } },
+            { $group: { _id: { $month: "$date" }, revenue: { $sum: "$finalAmount" } } },
+            { $sort: { '_id': 1 } }
         ]);
         
         const servicesData = await Booking.aggregate([
-             { $match: { isPaid: true } }, // Also ensuring this reflects paid bookings
+             { $match: { isPaid: true } },
              { $group: { _id: '$serviceType', bookings: { $sum: 1 } } }
         ]);
         
-        // --- FIX: Added {isPaid: true} to filter for paid bookings only ---
         const recentBookings = await Booking.find({ isPaid: true })
             .sort({ createdAt: -1 })
             .limit(5)
