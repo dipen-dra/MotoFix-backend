@@ -8,6 +8,7 @@ const { getUnreadCount, clearChatForUser } = require('../../controllers/user/cha
 
 // 1. Corrected the filename from ChatController to chatController (assuming that's the real file name)
 
+
 // @route   GET /api/user/chat/unread-count
 // @desc    Get the number of unread messages for the logged-in user
 router.get('/unread-count', authenticateUser, getUnreadCount);
