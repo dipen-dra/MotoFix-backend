@@ -9,6 +9,7 @@ import sendEmail from '../../utils/sendEmail.js';
 const SUCCESS_ICON_URL = 'https://cdn.vectorstock.com/i/500p/20/36/3d-green-check-icon-tick-mark-symbol-vector-56142036.jpg';
 const CANCEL_ICON_URL = 'https://media.istockphoto.com/id/1132722548/vector/round-red-x-mark-line-icon-button-cross-symbol-on-white-background.jpg?s=612x612&w=0&k=20&c=QnHlhWesKpmbov2MFn2yAMg6oqDS8YXmC_iDsPK_BXQ=';
 
+// This function remains the same, correctly hiding all archived bookings.
 export const getAllBookings = async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
@@ -16,7 +17,7 @@ export const getAllBookings = async (req, res) => {
         const search = req.query.search || '';
         const skip = (page - 1) * limit;
 
-        const matchQuery = { isPaid: true };
+        const matchQuery = { isPaid: true, archivedByAdmin: { $ne: true } };
         if (search) {
             matchQuery.$or = [
                 { 'customer.fullName': { $regex: search, $options: 'i' } },
@@ -25,23 +26,11 @@ export const getAllBookings = async (req, res) => {
         }
 
         const bookingsAggregation = await Booking.aggregate([
-            {
-                $lookup: {
-                    from: 'users',
-                    localField: 'customer',
-                    foreignField: '_id',
-                    as: 'customer'
-                }
-            },
+            { $lookup: { from: 'users', localField: 'customer', foreignField: '_id', as: 'customer' } },
             { $unwind: '$customer' },
             { $match: matchQuery },
             { $sort: { createdAt: -1 } },
-            {
-                $facet: {
-                    metadata: [{ $count: 'totalItems' }],
-                    data: [{ $skip: skip }, { $limit: limit }]
-                }
-            }
+            { $facet: { metadata: [{ $count: 'totalItems' }], data: [{ $skip: skip }, { $limit: limit }] } }
         ]);
 
         const bookings = bookingsAggregation[0].data;
@@ -61,22 +50,21 @@ export const getAllBookings = async (req, res) => {
     }
 };
 
+// This function remains the same.
 export const getBookingById = async (req, res) => {
     try {
-        const booking = await Booking.findById(req.params.id)
-            .populate('customer', 'fullName email phone address');
-
+        const booking = await Booking.findById(req.params.id).populate('customer', 'fullName email phone address');
         if (!booking) {
             return res.status(404).json({ success: false, message: 'Booking not found' });
         }
         res.json({ success: true, data: booking });
-
     } catch (error) {
         console.error(`Error fetching booking by ID: ${error.message}`);
         res.status(500).json({ success: false, message: 'Server Error' });
     }
 };
 
+// This function remains the same.
 export const updateBooking = async (req, res) => {
     try {
         const { status, totalCost } = req.body;
@@ -109,19 +97,11 @@ export const updateBooking = async (req, res) => {
 
         await booking.save();
         
-        const updatedBookingWithPopulation = await Booking.findById(booking._id)
-            .populate('customer', 'fullName email phone address');
+        const updatedBookingWithPopulation = await Booking.findById(booking._id).populate('customer', 'fullName email phone address');
 
-        // =================================================================
-        // --- 🚀 START: REAL-TIME STATUS UPDATE EMIT ---
-        // =================================================================
         if (statusChanged && booking.customer) {
-            // Get the socket.io instance attached to the app via app.set() in your main server file
             const io = req.app.get('socketio');
-            // Define the specific room for the user to ensure private communication
             const userRoom = `chat-${booking.customer._id.toString()}`;
-
-            // Emit the custom event 'booking_status_update' to the user's room
             io.to(userRoom).emit('booking_status_update', {
                 bookingId: updatedBookingWithPopulation._id,
                 serviceType: updatedBookingWithPopulation.serviceType,
@@ -129,24 +109,16 @@ export const updateBooking = async (req, res) => {
                 message: `Your booking for "${updatedBookingWithPopulation.serviceType}" is now ${updatedBookingWithPopulation.status}.`
             });
         }
-        // =================================================================
-        // --- ✅ END: REAL-TIME STATUS UPDATE EMIT ---
-        // =================================================================
 
         res.json({ success: true, data: updatedBookingWithPopulation, message: "Booking updated successfully." });
 
-        // Your existing email logic can remain as is.
-        if (statusChanged && booking.customer) {
-            if (status === 'Completed') {
-                try {
-                    const emailHtml = `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;"> <div style="text-align: center; padding: 20px; background-color: #f8f8f8;"> <img src="${SUCCESS_ICON_URL}" alt="Success Icon" style="width: 80px;"/> <h2 style="color: #27ae60;">Your Service is Complete!</h2> </div> <div style="padding: 20px;"> <p>Dear ${booking.customer.fullName},</p> <p>We are pleased to inform you that your booking <strong>#${booking._id}</strong> for <strong>${booking.serviceType}</strong> has been marked as <strong>Completed</strong>.</p> <p>We hope you are satisfied with our service. Please feel free to provide any feedback.</p> <p>Thank you again for choosing MotoFix!</p> </div> <hr/> <p style="font-size: 0.8em; color: #777; text-align: center;">This is an automated email. Please do not reply.</p> </div>`;
-                    sendEmail(booking.customer.email, 'Your MotoFix Service is Complete!', emailHtml)
-                        .catch(err => console.error('Error sending completion email:', err));
-                } catch (emailError) {
-                    console.error('Error preparing completion email:', emailError);
-                }
-            } else if (status === 'Cancelled') {
-                 // ... (your existing cancellation logic is fine)
+        if (statusChanged && booking.customer && status === 'Completed') {
+            try {
+                const emailHtml = `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;"> <div style="text-align: center; padding: 20px; background-color: #f8f8f8;"> <img src="${SUCCESS_ICON_URL}" alt="Success Icon" style="width: 80px;"/> <h2 style="color: #27ae60;">Your Service is Complete!</h2> </div> <div style="padding: 20px;"> <p>Dear ${booking.customer.fullName},</p> <p>We are pleased to inform you that your booking <strong>#${booking._id}</strong> for <strong>${booking.serviceType}</strong> has been marked as <strong>Completed</strong>.</p> <p>We hope you are satisfied with our service. Please feel free to provide any feedback.</p> <p>Thank you again for choosing MotoFix!</p> </div> <hr/> <p style="font-size: 0.8em; color: #777; text-align: center;">This is an automated email. Please do not reply.</p> </div>`;
+                sendEmail(booking.customer.email, 'Your MotoFix Service is Complete!', emailHtml)
+                    .catch(err => console.error('Error sending completion email:', err));
+            } catch (emailError) {
+                console.error('Error preparing completion email:', emailError);
             }
         }
     } catch (error) {
@@ -157,6 +129,10 @@ export const updateBooking = async (req, res) => {
     }
 };
 
+/**
+ * @description Archives a booking. If status is 'Pending' or 'In Progress', it's also set to 'Cancelled'.
+ * If status is 'Completed', it's only archived.
+ */
 export const deleteBooking = async (req, res) => {
     try {
         const booking = await Booking.findById(req.params.id).populate('customer', 'fullName email loyaltyPoints');
@@ -164,44 +140,59 @@ export const deleteBooking = async (req, res) => {
             return res.status(404).json({ success: false, message: "Booking not found." });
         }
 
-        let pointsReversalMessage = '';
-        if (booking.customer) {
-            const user = await User.findById(booking.customer._id);
-            if (user) {
-                let pointsChanged = false;
-                if (booking.pointsAwarded > 0) {
-                    user.loyaltyPoints -= booking.pointsAwarded;
-                    pointsReversalMessage += `<p>The <strong>${booking.pointsAwarded} loyalty points</strong> you earned from this booking have been reversed.</p>`;
-                    pointsChanged = true;
-                }
-                if (booking.discountApplied) {
-                    user.loyaltyPoints += 100;
-                    pointsReversalMessage += `<p>The <strong>100 loyalty points</strong> you used for a discount on this booking have been refunded.</p>`;
-                    pointsChanged = true;
-                }
-                if (pointsChanged) {
-                    if (user.loyaltyPoints < 0) user.loyaltyPoints = 0;
-                    await user.save();
+        let responseMessage;
+
+        // --- NEW CONDITIONAL LOGIC ---
+        if (booking.status === 'Pending' || booking.status === 'In Progress') {
+            // Action: Cancel the booking for the user and archive for admin
+            booking.status = 'Cancelled';
+            booking.archivedByAdmin = true;
+            responseMessage = "Booking has been cancelled and removed from view. User has been notified.";
+
+            // Handle points reversal and email notification for cancellation
+            let pointsReversalMessage = '';
+            if (booking.customer) {
+                const user = await User.findById(booking.customer._id);
+                if (user) {
+                    let pointsChanged = false;
+                    if (booking.pointsAwarded > 0) {
+                        user.loyaltyPoints -= booking.pointsAwarded;
+                        pointsReversalMessage += `<p>The <strong>${booking.pointsAwarded} loyalty points</strong> you earned have been reversed.</p>`;
+                        pointsChanged = true;
+                    }
+                    if (booking.discountApplied) {
+                        user.loyaltyPoints += 100;
+                        pointsReversalMessage += `<p>The <strong>100 loyalty points</strong> you used have been refunded.</p>`;
+                        pointsChanged = true;
+                    }
+                    if (pointsChanged) {
+                        if (user.loyaltyPoints < 0) user.loyaltyPoints = 0;
+                        await user.save();
+                    }
                 }
             }
-        }
 
-        if (booking.customer && booking.customer.email) {
-            try {
+            if (booking.customer && booking.customer.email) {
                 const subject = 'Your MotoFix Booking Has Been Cancelled';
-                let refundMessage = '';
-                if (booking.isPaid && booking.paymentMethod !== 'COD') {
-                    refundMessage = `<p>Since your payment was already completed via <strong>${booking.paymentMethod}</strong>, a refund for the amount of <strong>Rs. ${booking.finalAmount}</strong> will be processed and sent to your original payment account shortly.</p>`;
-                }
-                const emailHtml = `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;"> <div style="text-align: center; padding: 20px; background-color: #f8f8f8;"> <img src="${CANCEL_ICON_URL}" alt="Cancellation Icon" style="width: 80px;"/> <h2 style="color: #c0392b;">Booking Cancelled</h2> </div> <div style="padding: 20px;"> <p>Dear ${booking.customer.fullName},</p> <p>We're writing to inform you that your booking <strong>#${booking._id}</strong> for the service <strong>"${booking.serviceType}"</strong> has been cancelled by our administration.</p> ${refundMessage} ${pointsReversalMessage} <p>We apologize for any inconvenience this may cause. If you have any questions, please feel free to contact our support.</p> <p>Thank you,<br>The MotoFix Team</p> </div> <hr/> <p style="font-size: 0.8em; color: #777; text-align: center;">This is an automated email. Please do not reply.</p> </div>`;
+                let refundMessage = booking.isPaid && booking.paymentMethod !== 'COD'
+                    ? `<p>A refund for <strong>Rs. ${booking.finalAmount}</strong> will be processed shortly.</p>`
+                    : '';
+                const emailHtml = `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;"> <div style="text-align: center; padding: 20px; background-color: #f8f8f8;"> <img src="${CANCEL_ICON_URL}" alt="Cancellation Icon" style="width: 80px;"/> <h2 style="color: #c0392b;">Booking Cancelled</h2> </div> <div style="padding: 20px;"> <p>Dear ${booking.customer.fullName},</p> <p>We're writing to inform you that your booking <strong>#${booking._id}</strong> for <strong>"${booking.serviceType}"</strong> has been cancelled by our administration.</p> ${refundMessage} ${pointsReversalMessage} <p>We apologize for any inconvenience.</p> <p>Thank you,<br>The MotoFix Team</p> </div></div>`;
                 sendEmail(booking.customer.email, subject, emailHtml)
                     .catch(err => console.error("Error sending cancellation email:", err));
-            } catch (emailError) {
-                console.error("Error preparing cancellation email:", emailError);
             }
+
+        } else {
+            // Action: Just archive the booking (for 'Completed' or already 'Cancelled' bookings)
+            booking.archivedByAdmin = true;
+            responseMessage = "Booking has been archived and removed from view.";
+            // No status change, no email, no point reversal for completed jobs.
         }
-        await Booking.findByIdAndDelete(req.params.id);
-        res.status(200).json({ success: true, message: "Booking deleted successfully. A notification has been sent to the user." });
+
+        await booking.save(); // Save the changes
+        
+        res.status(200).json({ success: true, message: responseMessage });
+
     } catch (error) {
         console.error("Admin deleteBooking Error:", error);
         res.status(500).json({ success: false, message: "Server error." });
