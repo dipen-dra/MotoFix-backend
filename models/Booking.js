@@ -1,13 +1,15 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 const Schema = mongoose.Schema;
 
 const BookingSchema = new Schema(
     {
-        // ... all your existing fields
         customer: { type: Schema.Types.ObjectId, ref: 'User', required: true },
         service: { type: Schema.Types.ObjectId, ref: 'Service', required: true },
-        customerName: { type: String, required: true },
+        
+        // --- REVERTED TO ORIGINAL ---
         bikeModel: { type: String, required: true },
+        
+        customerName: { type: String, required: true },
         serviceType: { type: String, required: true },
         status: {
             type: String,
@@ -33,8 +35,6 @@ const BookingSchema = new Schema(
         isPaid: { type: Boolean, default: false },
         pointsAwarded: { type: Number, default: 0 },
         reviewSubmitted: { type: Boolean, default: false },
-
-        // --- NEW FIELD TO HIDE FROM ADMIN VIEW ---
         archivedByAdmin: {
             type: Boolean,
             default: false
@@ -43,4 +43,4 @@ const BookingSchema = new Schema(
     { timestamps: true }
 );
 
-module.exports = mongoose.model("Booking", BookingSchema);
+export default mongoose.model("Booking", BookingSchema);

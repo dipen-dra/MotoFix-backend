@@ -1,10 +1,13 @@
 /**
 @file controllers/admin/bookingController.js
-@description Controller for admin-facing booking management with real-time status updates.
+@description Controller for admin-facing booking management, now with PDF invoice generation.
 */
 import Booking from '../../models/Booking.js';
 import User from '../../models/User.js';
 import sendEmail from '../../utils/sendEmail.js';
+// --- NEW IMPORTS FOR PDF GENERATION ---
+import puppeteer from 'puppeteer';
+import { getInvoiceHTML } from '../../utils/invoiceTemplate.js'; // You need this model to get workshop details
 
 const SUCCESS_ICON_URL = 'https://cdn.vectorstock.com/i/500p/20/36/3d-green-check-icon-tick-mark-symbol-vector-56142036.jpg';
 const CANCEL_ICON_URL = 'https://media.istockphoto.com/id/1132722548/vector/round-red-x-mark-line-icon-button-cross-symbol-on-white-background.jpg?s=612x612&w=0&k=20&c=QnHlhWesKpmbov2MFn2yAMg6oqDS8YXmC_iDsPK_BXQ=';
@@ -21,7 +24,8 @@ export const getAllBookings = async (req, res) => {
         if (search) {
             matchQuery.$or = [
                 { 'customer.fullName': { $regex: search, $options: 'i' } },
-                { 'serviceType': { $regex: search, $options: 'i' } }
+                { 'serviceType': { $regex: search, $options: 'i' } },
+                { 'bikeModel': { $regex: search, $options: 'i' } } // Search by bikeModel
             ];
         }
 
@@ -89,6 +93,7 @@ export const updateBooking = async (req, res) => {
         if (totalCost !== undefined) {
             booking.totalCost = totalCost;
             if (booking.discountApplied) {
+                // Assuming a fixed 20% discount for this calculation. Adjust if needed.
                 booking.finalAmount = totalCost - (totalCost * 0.20);
             } else {
                 booking.finalAmount = totalCost;
@@ -142,14 +147,11 @@ export const deleteBooking = async (req, res) => {
 
         let responseMessage;
 
-        // --- NEW CONDITIONAL LOGIC ---
         if (booking.status === 'Pending' || booking.status === 'In Progress') {
-            // Action: Cancel the booking for the user and archive for admin
             booking.status = 'Cancelled';
             booking.archivedByAdmin = true;
             responseMessage = "Booking has been cancelled and removed from view. User has been notified.";
 
-            // Handle points reversal and email notification for cancellation
             let pointsReversalMessage = '';
             if (booking.customer) {
                 const user = await User.findById(booking.customer._id);
@@ -183,13 +185,11 @@ export const deleteBooking = async (req, res) => {
             }
 
         } else {
-            // Action: Just archive the booking (for 'Completed' or already 'Cancelled' bookings)
             booking.archivedByAdmin = true;
             responseMessage = "Booking has been archived and removed from view.";
-            // No status change, no email, no point reversal for completed jobs.
         }
 
-        await booking.save(); // Save the changes
+        await booking.save();
         
         res.status(200).json({ success: true, message: responseMessage });
 
@@ -198,3 +198,113 @@ export const deleteBooking = async (req, res) => {
         res.status(500).json({ success: false, message: "Server error." });
     }
 };
+
+// --- NEW FUNCTION FOR PDF INVOICE GENERATION ---
+/**
+ * @description Generates and sends a PDF invoice for a specific booking.
+ * @route   GET /api/admin/bookings/:id/invoice
+ * @access  Private (Admin)
+ */
+
+export const generateBookingInvoice = async (req, res) => {
+    try {
+        const booking = await Booking.findById(req.params.id)
+            // --- UPDATED: Added 'address' to the populate call ---
+            .populate('customer', 'fullName email phone address'); 
+
+        if (!booking) {
+            return res.status(404).json({ success: false, message: 'Booking not found.' });
+        }
+        
+        if (!booking.isPaid) {
+            return res.status(400).json({ success: false, message: 'Cannot generate an invoice for an unpaid booking.' });
+        }
+
+        const workshopAdmin = await User.findOne({ role: 'admin' });
+        
+        if (!workshopAdmin) {
+            return res.status(500).json({ success: false, message: 'Admin user profile not found. Cannot generate invoice.' });
+        }
+
+        const workshopDetails = {
+            name: workshopAdmin.workshopName || workshopAdmin.fullName,
+            address: workshopAdmin.address || 'Address Not Set',
+            phone: workshopAdmin.phone || 'Phone Not Set'
+        };
+
+        const htmlContent = getInvoiceHTML(booking, workshopDetails);
+
+        const browser = await puppeteer.launch({ 
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox'] 
+        });
+        const page = await browser.newPage();
+        await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+        const pdfBuffer = await page.pdf({ 
+            format: 'A4', 
+            printBackground: true,
+            margin: { top: '25px', right: '25px', bottom: '25px', left: '25px' }
+        });
+        await browser.close();
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=invoice-${booking._id}.pdf`);
+        res.send(pdfBuffer);
+
+    } catch (error) {
+        console.error('Error generating PDF invoice:', error);
+        res.status(500).json({ success: false, message: 'Server error while generating invoice.' });
+    }
+};
+// export const generateBookingInvoice = async (req, res) => {
+//     try {
+//         const booking = await Booking.findById(req.params.id)
+//             .populate('customer', 'fullName email phone');
+
+//         if (!booking) {
+//             return res.status(404).json({ success: false, message: 'Booking not found.' });
+//         }
+        
+//         if (!booking.isPaid) {
+//             return res.status(400).json({ success: false, message: 'Cannot generate an invoice for an unpaid booking.' });
+//         }
+
+//         // --- THE FIX ---
+//         // Instead of looking for AdminProfile, we find the user with the 'admin' role.
+//         const workshopAdmin = await User.findOne({ role: 'admin' });
+        
+//         if (!workshopAdmin) {
+//             return res.status(500).json({ success: false, message: 'Admin user profile not found. Cannot generate invoice.' });
+//         }
+
+//         // Use the details from the admin's user document
+//         const workshopDetails = {
+//             name: workshopAdmin.workshopName || workshopAdmin.fullName, // Assumes you have a 'workshopName' field on your User model for the admin
+//             address: workshopAdmin.address || 'Address Not Set',
+//             phone: workshopAdmin.phone || 'Phone Not Set'
+//         };
+
+//         const htmlContent = getInvoiceHTML(booking, workshopDetails);
+
+//         const browser = await puppeteer.launch({ 
+//             headless: true,
+//             args: ['--no-sandbox', '--disable-setuid-sandbox'] 
+//         });
+//         const page = await browser.newPage();
+//         await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+//         const pdfBuffer = await page.pdf({ 
+//             format: 'A4', 
+//             printBackground: true,
+//             margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' }
+//         });
+//         await browser.close();
+
+//         res.setHeader('Content-Type', 'application/pdf');
+//         res.setHeader('Content-Disposition', `attachment; filename=invoice-${booking._id}.pdf`);
+//         res.send(pdfBuffer);
+
+//     } catch (error) {
+//         console.error('Error generating PDF invoice:', error);
+//         res.status(500).json({ success: false, message: 'Server error while generating invoice.' });
+//     }
+// };
