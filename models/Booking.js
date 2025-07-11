@@ -1,14 +1,14 @@
-import mongoose from "mongoose";
+// models/Booking.js (Corrected to CommonJS)
+
+// --- CHANGED: Use require instead of import ---
+const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
 const BookingSchema = new Schema(
     {
         customer: { type: Schema.Types.ObjectId, ref: 'User', required: true },
         service: { type: Schema.Types.ObjectId, ref: 'Service', required: true },
-        
-        // --- REVERTED TO ORIGINAL ---
         bikeModel: { type: String, required: true },
-        
         customerName: { type: String, required: true },
         serviceType: { type: String, required: true },
         status: {
@@ -43,4 +43,5 @@ const BookingSchema = new Schema(
     { timestamps: true }
 );
 
-export default mongoose.model("Booking", BookingSchema);
+// --- CHANGED: Use module.exports instead of export default ---
+module.exports = mongoose.model("Booking", BookingSchema);
