@@ -1,4 +1,3 @@
-
 // Import both necessary models
 const Booking = require('../../models/Booking');
 const User = require('../../models/User');
@@ -8,7 +7,7 @@ const User = require('../../models/User');
  * @route   GET /api/user/dashboard-summary
  * @access  Private
  * @description This controller retrieves counts of upcoming and completed bookings,
- *              the most recent bookings, and the user's current loyalty points.
+ * the most recent bookings, and the user's current loyalty points.
  */
 const getDashboardSummary = async (req, res) => {
     try {
@@ -25,8 +24,10 @@ const getDashboardSummary = async (req, res) => {
                 customer: userId,
                 status: 'Completed'
             }),
+            // Populate workshop for recent bookings to display workshop name in frontend
             Booking.find({ customer: userId })
-                .sort({ date: -1 }) // Sort by the service date to show upcoming ones first
+                .populate('workshop', 'workshopName') // Populate workshop name
+                .sort({ date: -1 }) 
                 .limit(5)
         ]);
         
@@ -45,7 +46,7 @@ const getDashboardSummary = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error("Error fetching dashboard summary:", error);
+        console.error("User getDashboardSummary Error:", error);
         res.status(500).json({ success: false, message: 'Server Error' });
     }
 };

@@ -5,22 +5,17 @@ const {
     getServices,
     updateService, 
     deleteService,
-    getServiceWithReviews // <-- IMPORT THE NEW FUNCTION
+    getServiceWithReviews 
 } = require("../../controllers/admin/serviceController");
 
-const upload = require('../../middlewares/upload');
-const { authenticateUser, isAdmin } = require("../../middlewares/authorizedUser");
+const upload = require('../../middlewares/upload'); // General image upload middleware
+const { authenticateUser, isWorkshopAdmin } = require("../../middlewares/authorizedUser"); // Use isWorkshopAdmin
 
+router.post("/", authenticateUser, isWorkshopAdmin, upload, createService);
+router.get("/", authenticateUser, isWorkshopAdmin, getServices);
+router.put("/:id", authenticateUser, isWorkshopAdmin, upload, updateService);
+router.delete("/:id", authenticateUser, isWorkshopAdmin, deleteService);
 
-router.post("/", authenticateUser, isAdmin, upload, createService);
-router.get("/", authenticateUser, isAdmin, getServices);
-router.put("/:id", authenticateUser, isAdmin, upload, updateService);
-router.delete("/:id", authenticateUser, isAdmin, deleteService);
-
-// ===============================================
-// THIS IS THE NEW ROUTE YOU NEED TO ADD
-// ===============================================
-router.get("/:id/reviews", authenticateUser, isAdmin, getServiceWithReviews);
-
+router.get("/:id/reviews", authenticateUser, isWorkshopAdmin, getServiceWithReviews);
 
 module.exports = router;

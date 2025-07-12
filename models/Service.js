@@ -31,7 +31,7 @@
 // module.exports = mongoose.model('Service', serviceSchema);
 
 
-
+// models/Service.js
 const mongoose = require('mongoose');
 
 // Define the review schema first, as it will be embedded within the Service.
@@ -64,7 +64,8 @@ const serviceSchema = new mongoose.Schema({
         type: String,
         required: [true, "Service name is required."],
         trim: true,
-        unique: true
+        // Removed unique: true here. Two workshops can have a 'General Service'
+        // We'll enforce uniqueness per workshop in controllers if needed.
     },
     description: {
         type: String,
@@ -82,7 +83,6 @@ const serviceSchema = new mongoose.Schema({
         type: String, // Path to the image
         required: [true, "Service image is required."]
     },
-    // --- NEW FIELDS FOR REVIEWS ---
     reviews: [reviewSchema],
     rating: {
         type: Number,
@@ -93,9 +93,18 @@ const serviceSchema = new mongoose.Schema({
         type: Number,
         required: true,
         default: 0
+    },
+    // --- NEW FIELD: Link service to a specific workshop ---
+    workshop: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Workshop',
+        required: true // Every service must belong to a workshop
     }
 }, {
     timestamps: true
 });
+
+// Optional: Add a compound unique index if you want to ensure a service name is unique PER workshop
+serviceSchema.index({ name: 1, workshop: 1 }, { unique: true });
 
 module.exports = mongoose.model('Service', serviceSchema);

@@ -4,7 +4,7 @@ const { authenticateUser } = require('../../middlewares/authorizedUser');
 
 // It's perfectly fine to re-use this controller. It's designed to be generic.
 const { uploadChatFile } = require('../../controllers/admin/chatController'); 
-const { getUnreadCount, clearChatForUser } = require('../../controllers/user/chatController');
+const { getUnreadCount, clearChatForUser } = require('../../controllers/user/ChatController');
 
 // 1. Corrected the filename from ChatController to chatController (assuming that's the real file name)
 
