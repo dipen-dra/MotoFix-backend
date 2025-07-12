@@ -34,10 +34,31 @@ const UserSchema = new Schema(
             type: String,
             default: ""
         },
-        // NEW FIELD
         loyaltyPoints: {
             type: Number,
             default: 0
+        },
+        // --- NEW FIELD: For storing user's geographical location ---
+        location: {
+            type: {
+                type: String,
+                enum: ['Point'], // GeoJSON Point type
+                default: 'Point',
+            },
+            coordinates: { // [longitude, latitude]
+                type: [Number],
+                default: [0, 0], // Default to [0, 0] or null
+                index: '2dsphere' // Create a geospatial index
+            }
+        },
+        // --- NEW FIELD: Link admin users to a specific workshop ---
+        workshop: {
+            type: Schema.Types.ObjectId,
+            ref: 'Workshop',
+            // This is optional; a 'normal' user won't have a workshop.
+            // An 'admin' user, however, should be associated with one.
+            // We'll enforce this in controllers/middleware.
+            default: null
         }
     },
     { timestamps: true }

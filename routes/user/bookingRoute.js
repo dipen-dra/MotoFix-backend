@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 
-// --- MODIFICATION: Import all necessary functions ---
 const { 
     getUserBookings, 
     createBooking, 
@@ -10,9 +9,9 @@ const {
     confirmPayment,
     verifyKhaltiPayment,
     applyLoyaltyDiscount,
-    getUserBookingById, // <-- NEW
-    getPendingBookings, // <-- NEW
-    getBookingHistory   // <-- NEW
+    getUserBookingById, 
+    getPendingBookings, 
+    getBookingHistory 
 } = require('../../controllers/user/bookingController');
 const { authenticateUser } = require('../../middlewares/authorizedUser');
 
@@ -21,17 +20,17 @@ router.route('/bookings')
     .get(authenticateUser, getUserBookings)
     .post(authenticateUser, createBooking);
 
-// --- NEW ROUTES for the "My Payments" page ---
+// NEW ROUTES for the "My Payments" page
 router.route('/bookings/pending').get(authenticateUser, getPendingBookings);
 router.route('/bookings/history').get(authenticateUser, getBookingHistory);
 
-// --- MODIFICATION: Added GET method for the "Edit Booking" page ---
+// MODIFICATION: Added GET method for the "Edit Booking" page
 router.route('/bookings/:id')
-    .get(authenticateUser, getUserBookingById) // <-- ADD THIS LINE
+    .get(authenticateUser, getUserBookingById) 
     .put(authenticateUser, updateUserBooking)
     .delete(authenticateUser, deleteUserBooking);
 
-// --- Existing Routes (Unchanged) ---
+// Existing Routes (Unchanged)
 router.route('/bookings/:id/pay')
     .put(authenticateUser, confirmPayment);
 

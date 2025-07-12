@@ -1,13 +1,16 @@
-import crypto from 'crypto';
-import fetch from 'node-fetch';
-import Booking from '../models/Booking.js';
-import User from '../models/User.js';
-import sendEmail from '../utils/sendEmail.js';
+// controllers/esewaController.js
+
+const crypto = require('crypto');
+const fetch = require('node-fetch');
+const Booking = require('../models/Booking.js');
+const User = require('../models/User.js');
+const sendEmail = require('../utils/sendEmail.js');
+const Workshop = require('../models/Workshop.js'); // Import Workshop model
+const axios = require('axios'); // Add axios import for Khalti verification logic
 
 // --- Icon URL for direct use in email HTML ---
-// --- Icon URLs for direct use in email HTML for better reliability ---
 const SUCCESS_ICON_URL = 'https://cdn.vectorstock.com/i/500p/20/36/3d-green-check-icon-tick-mark-symbol-vector-56142036.jpg'; // Green tick icon
-const CANCEL_ICON_URL = 'https://media.istockphoto.com/id/1132722548/vector/round-red-x-mark-line-icon-button-cross-symbol-on-white-background.jpg?s=612x612&w=0&k=20&c=QnHlhWesKpmbov2MFn2yAMg6oqDS8YXmC_iDsPK_BXQ=';  // Red cross icon
+const CANCEL_ICON_URL = 'https://media.istockphoto.com/id/1132722548/vector/round-red-x-mark-line-icon-button-cross-symbol-on-white-background.jpg?s=612x612&w=0&k=20&c=QnHlhWesKpmbov2MFn2yAMg6oqDS8YXmC_iDsPK_BXQ=';  // Red cross icon
 
 const ESEWA_URL = 'https://rc-epay.esewa.com.np/api/epay/main/v2/form';
 const ESEWA_SCD = 'EPAYTEST';
@@ -25,13 +28,16 @@ const awardLoyaltyPoints = async (userId) => {
     return 0;
 };
 
-export const initiateEsewaPayment = async (req, res) => {
+// Define functions locally first, then export them in module.exports
+const initiateEsewaPayment = async (req, res) => { // Changed from exports.initiateEsewaPayment
     try {
         const { bookingId } = req.body;
         const booking = await Booking.findById(bookingId);
 
         if (!booking) return res.status(404).json({ message: 'Booking not found' });
         if (booking.finalAmount == null) return res.status(400).json({ message: 'Booking does not have a final amount to pay.' });
+        if (booking.isPaid) return res.status(400).json({ message: 'Booking is already paid.' });
+
 
         const amountToPay = booking.finalAmount.toString();
         const signedFieldNames = 'total_amount,transaction_uuid,product_code';
@@ -62,12 +68,7 @@ export const initiateEsewaPayment = async (req, res) => {
     }
 };
 
-/**
- * @desc      Verify an eSewa payment and send confirmation email
- * @route     GET /api/payment/esewa/verify
- * @access    Private (Implicitly, via frontend ProtectedRoute)
- */
-export const verifyEsewaPayment = async (req, res) => {
+const verifyEsewaPayment = async (req, res) => { // Changed from exports.verifyEsewaPayment
     try {
         const { data } = req.query;
         if (!data) {
@@ -86,7 +87,9 @@ export const verifyEsewaPayment = async (req, res) => {
         const verificationResponse = await response.json();
 
         if (verificationResponse.status === 'COMPLETE') {
-            const booking = await Booking.findById(decodedData.transaction_uuid).populate('customer', 'fullName email');
+            const booking = await Booking.findById(decodedData.transaction_uuid)
+                                         .populate('customer', 'fullName email')
+                                         .populate('workshop', 'workshopName address phone'); // Populate workshop for email
 
             if (!booking) {
                 return res.status(404).json({ success: false, message: 'Booking not found after payment.' });
@@ -95,18 +98,16 @@ export const verifyEsewaPayment = async (req, res) => {
                 return res.status(200).json({ success: true, message: 'Payment was already verified.' });
             }
             
-            // Award loyalty points and get the amount awarded
             const points = await awardLoyaltyPoints(booking.customer._id);
 
             booking.paymentStatus = 'Paid';
             booking.paymentMethod = 'eSewa';
             booking.isPaid = true;
-            booking.pointsAwarded = points; // <-- MODIFICATION: Store the points awarded
+            booking.pointsAwarded = points;
             await booking.save();
 
             res.status(200).json({ success: true, message: `Payment successful! You earned ${points} loyalty points.` });
 
-            // --- SEND EMAIL NOTIFICATION IN THE BACKGROUND ---
             try {
                 const emailHtml = `
                     <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
@@ -117,7 +118,8 @@ export const verifyEsewaPayment = async (req, res) => {
                         <div style="padding: 20px;">
                             <p>Dear ${booking.customer.fullName},</p>
                             <p>Your payment for booking <strong>#${booking._id}</strong> has been successfully processed via eSewa.</p>
-                            <p>Your appointment for <strong>${booking.serviceType}</strong> on <strong>${new Date(booking.date).toLocaleDateString()}</strong> is confirmed.</p>
+                            <p>Your appointment for <strong>${booking.serviceType}</strong> on <strong>${new Date(booking.date).toLocaleDateString()}</strong> at <strong>${booking.workshop?.workshopName || 'MotoFix'}</strong> is confirmed.</p>
+                            ${booking.pickupDropoffRequested ? `<p>A technician will pick up your bike from <strong>${booking.pickupDropoffAddress}</strong>.</p>` : `<p>Please drop off your bike at <strong>${booking.workshop?.address || 'the workshop'}</strong>.</p>`}
                             <p>You have earned <strong>${points} loyalty points</strong> for this booking!</p>
                             <p>Total Amount Paid: <strong>Rs. ${booking.finalAmount}</strong></p>
                             <p>Thank you for choosing MotoFix!</p>
@@ -140,4 +142,10 @@ export const verifyEsewaPayment = async (req, res) => {
             res.status(500).json({ success: false, message: 'Server error during verification.' });
         }
     }
+};
+
+// --- MODIFIED: Export the functions correctly ---
+module.exports = {
+    initiateEsewaPayment,
+    verifyEsewaPayment
 };
