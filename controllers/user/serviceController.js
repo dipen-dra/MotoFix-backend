@@ -3,7 +3,7 @@ const Workshop = require('../../models/Workshop'); // Import Workshop model
 const User = require('../../models/User'); // Import User model to get user's location
 
 /**
- * @desc    Get all available services (MODIFIED: Now fetches services for ALL workshops, potentially filtered by user location)
+ * @desc    Get all available services (MODIFIED: Refactored to use aggregation pipeline for $geoNear)
  * @route   GET /api/user/services
  * @access  Private
  * @query   lat, lon, radiusKm (optional, for proximity search)
@@ -12,7 +12,6 @@ exports.getAvailableServices = async (req, res) => {
     try {
         const { lat, lon, radiusKm } = req.query; // Query parameters for location-based search
 
-        let query = {};
         let services = [];
 
         if (lat && lon && radiusKm) {
@@ -24,18 +23,43 @@ exports.getAvailableServices = async (req, res) => {
                 return res.status(400).json({ success: false, message: "Invalid location or radius parameters." });
             }
 
-            // Find workshops near the provided coordinates
-            const nearbyWorkshops = await Workshop.find({
-                location: {
-                    $near: {
-                        $geometry: {
-                            type: "Point",
-                            coordinates: [userLon, userLat] // MongoDB expects [longitude, latitude]
-                        },
-                        $maxDistance: searchRadius * 1000 // Convert km to meters
+            // --- REFACTORED: Use aggregation pipeline with $geoNear for robust geospatial query ---
+            const nearbyWorkshops = await Workshop.aggregate([
+                {
+                    $geoNear: {
+                        near: { type: "Point", coordinates: [userLon, userLat] },
+                        distanceField: "distance", // Output field that contains the distance
+                        maxDistance: searchRadius * 1000, // Convert km to meters
+                        spherical: true // Treat earth as a sphere for accurate calculation
+                        // Optionally, add a query for other filters directly in $geoNear
+                        // query: { "location.coordinates": { "$ne": [0,0] } } // This filter works better here if needed
                     }
+                },
+                {
+                    // Add an explicit filter for coordinates not being [0,0] AFTER $geoNear
+                    // This ensures $geoNear uses the index cleanly first, then filters.
+                    $match: {
+                        "location.coordinates": { "$ne": [0,0] }
+                    }
+                },
+                {
+                    // Project only the necessary fields from the workshop and add distance
+                    $project: {
+                        _id: 1,
+                        workshopName: 1,
+                        address: 1,
+                        phone: 1,
+                        pickupDropoffAvailable: 1,
+                        pickupDropoffCostPerKm: 1,
+                        location: 1, // Keep location for further use if needed
+                        distance: { $divide: ["$distance", 1000] } // Convert meters to km
+                    }
+                },
+                {
+                    // Sort by distance (optional, but good for "nearby" results)
+                    $sort: { "distance": 1 }
                 }
-            }).select('_id workshopName address phone pickupDropoffAvailable pickupDropoffCostPerKm'); // Select necessary workshop fields
+            ]);
 
             const nearbyWorkshopIds = nearbyWorkshops.map(w => w._id);
 
@@ -45,31 +69,22 @@ exports.getAvailableServices = async (req, res) => {
             }
 
             // Find services belonging to these nearby workshops
+            // Populate workshop details as before, and include the distance calculated from aggregation
             services = await Service.find({ workshop: { $in: nearbyWorkshopIds } })
-                                    .populate('workshop', 'workshopName address phone pickupDropoffAvailable pickupDropoffCostPerKm') // Populate workshop details
+                                    .populate('workshop', 'workshopName address phone pickupDropoffAvailable pickupDropoffCostPerKm location') // Populate workshop details including location
                                     .sort({ createdAt: -1 });
 
-            // Attach distance to each service based on its workshop's location to the user's location
+            // Attach the calculated distance to each service based on its workshop
             services = services.map(service => {
-                let distance = null;
-                if (service.workshop?.location?.coordinates && userLon && userLat) {
-                    const R = 6371; // Radius of Earth in km
-                    const workshopCoords = service.workshop.location.coordinates;
-                    const dLat = (userLat - workshopCoords[1]) * Math.PI / 180;
-                    const dLon = (userLon - workshopCoords[0]) * Math.PI / 180;
-                    const a = 
-                        Math.sin(dLat/2) * Math.sin(dLat/2) +
-                        Math.cos(workshopCoords[1] * Math.PI / 180) * Math.cos(userLat * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-                    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-                    distance = R * c; // Distance in km
-                }
-                return { ...service.toObject(), distance: distance ? parseFloat(distance.toFixed(2)) : null };
+                const workshopWithDistance = nearbyWorkshops.find(w => w._id.equals(service.workshop._id));
+                const distance = workshopWithDistance ? parseFloat(workshopWithDistance.distance.toFixed(2)) : null;
+                return { ...service.toObject(), distance: distance };
             });
 
         } else {
             // If no location/radius provided, return services from all workshops
             services = await Service.find({})
-                                    .populate('workshop', 'workshopName address phone pickupDropoffAvailable pickupDropoffCostPerKm')
+                                    .populate('workshop', 'workshopName address phone pickupDropoffAvailable pickupDropoffCostPerKm location') // Also populate location here
                                     .sort({ createdAt: -1 });
         }
         
@@ -78,7 +93,8 @@ exports.getAvailableServices = async (req, res) => {
             data: services
         });
     } catch (error) {
-        console.error("User getAvailableServices Error:", error);
+        // IMPORTANT: Log the full error object on the server for detailed debugging
+        console.error("User getAvailableServices Error:", error); 
         res.status(500).json({ success: false, message: "Server error.", error: error.message });
     }
 };
@@ -87,7 +103,7 @@ exports.getAvailableServices = async (req, res) => {
  * @desc    Get a single service by its ID with populated review author details
  * @route   GET /api/user/services/:id
  * @access  Private
- * @MODIFIED: Also populate workshop details
+ * @MODIFIED: Also populate workshop details including its location
  */
 exports.getServiceById = async (req, res) => {
     try {
@@ -96,7 +112,7 @@ exports.getServiceById = async (req, res) => {
                 path: 'reviews.user', 
                 select: 'fullName profilePicture' 
             })
-            .populate('workshop', 'workshopName address phone pickupDropoffAvailable pickupDropoffCostPerKm'); // Populate workshop details
+            .populate('workshop', 'workshopName address phone pickupDropoffAvailable pickupDropoffCostPerKm location'); // Populate workshop details including location
         
         if (!service) {
             return res.status(404).json({ success: false, message: "Service not found." });
