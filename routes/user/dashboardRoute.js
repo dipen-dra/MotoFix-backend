@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getDashboardSummary } = require('../../controllers/user/dashboardController');
 const { authenticateUser } = require('../../middlewares/authorizedUser');
-const { getUnreadCount } = require('../../controllers/user/ChatController');
+const { getUnreadCount } = require('../../controllers/user/chatController');
 
 console.log('authenticateUser loaded:', typeof authenticateUser);
 console.log('getDashboardSummary loaded:', typeof getDashboardSummary);

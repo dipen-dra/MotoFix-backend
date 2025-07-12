@@ -1,11 +1,16 @@
-const Booking = require("../../models/Booking");
-const User = require("../../models/User");
+// controllers/admin/dashboardController.js (Corrected)
 
+// --- CORRECTED: Use require ---
+const Booking = require('../../models/Booking.js');
+const User = require('../../models/User.js');
+
+// --- CORRECTED: Use exports.functionName syntax ---
 exports.getAnalytics = async (req, res) => {
     try {
+        // --- NOTE: Removed a stray 'a' character that was in your provided code here ---
         const totalRevenue = await Booking.aggregate([
-            { $match: { status: 'Completed' } },
-            { $group: { _id: null, total: { $sum: "$totalCost" } } }
+            { $match: { status: 'Completed', isPaid: true } },
+            { $group: { _id: null, total: { $sum: "$finalAmount" } } }
         ]);
 
         const totalBookings = await Booking.countDocuments({ isPaid: true });
@@ -14,17 +19,16 @@ exports.getAnalytics = async (req, res) => {
         const newUsers = await User.countDocuments({ createdAt: { $gte: startOfMonth } });
 
         const revenueData = await Booking.aggregate([
-            { $match: { status: 'Completed' } },
-            { $group: { _id: { $month: "$date" }, revenue: { $sum: "$totalCost" } } },
-            { $sort: { _id: 1 } }
+            { $match: { status: 'Completed', isPaid: true } },
+            { $group: { _id: { $month: "$date" }, revenue: { $sum: "$finalAmount" } } },
+            { $sort: { '_id': 1 } }
         ]);
         
         const servicesData = await Booking.aggregate([
-             { $match: { isPaid: true } }, // Also ensuring this reflects paid bookings
+             { $match: { isPaid: true } },
              { $group: { _id: '$serviceType', bookings: { $sum: 1 } } }
         ]);
         
-        // --- FIX: Added {isPaid: true} to filter for paid bookings only ---
         const recentBookings = await Booking.find({ isPaid: true })
             .sort({ createdAt: -1 })
             .limit(5)

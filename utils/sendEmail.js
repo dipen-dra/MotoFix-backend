@@ -1,13 +1,14 @@
+// C:\Users\dipen\motofix-backend\utils\sendEmail.js
 /**
  * @file utils/sendEmail.js
  * @description Email sending utility using Nodemailer.
  */
 
-import nodemailer from 'nodemailer';
+const nodemailer = require('nodemailer'); // Changed import to require
 
 /**
  * Sends an email using Nodemailer with a Gmail account.
- * * @param {string} to - The recipient's email address.
+ * @param {string} to - The recipient's email address.
  * @param {string} subject - The subject line of the email.
  * @param {string} html - The HTML body of the email.
  * @param {Array} [attachments=[]] - An array of attachment objects for Nodemailer.
@@ -43,4 +44,4 @@ const sendEmail = async (to, subject, html, attachments = []) => {
   }
 };
 
-export default sendEmail;
+module.exports = sendEmail; // Changed export default to module.exports
