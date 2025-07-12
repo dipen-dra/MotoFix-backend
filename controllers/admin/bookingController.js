@@ -64,16 +64,36 @@ exports.getAllBookings = async (req, res) => {
 };
 
 // --- MODIFIED: Filter by workshop ID ---
+// exports.getBookingById = async (req, res) => {
+//     try {
+//         const workshopId = req.workshopId; // Set by isWorkshopAdmin middleware
+//         if (!workshopId) {
+//             return res.status(403).json({ success: false, message: "Admin not linked to a workshop." });
+//         }
+
+//         // Find booking for the specific ID and workshop
+//         const booking = await Booking.findOne({ _id: req.params.id, workshop: workshopId })
+//                                     .populate('customer', 'fullName email phone address');
+//         if (!booking) {
+//             return res.status(404).json({ success: false, message: 'Booking not found or not for your workshop' });
+//         }
+//         res.json({ success: true, data: booking });
+//     } catch (error) {
+//         console.error(`Error fetching booking by ID: ${error.message}`);
+//         res.status(500).json({ success: false, message: 'Server Error' });
+//     }
+// };
+
 exports.getBookingById = async (req, res) => {
     try {
-        const workshopId = req.workshopId; // Set by isWorkshopAdmin middleware
+        const workshopId = req.workshopId;
         if (!workshopId) {
             return res.status(403).json({ success: false, message: "Admin not linked to a workshop." });
         }
-
-        // Find booking for the specific ID and workshop
         const booking = await Booking.findOne({ _id: req.params.id, workshop: workshopId })
-                                    .populate('customer', 'fullName email phone address');
+                                    .populate('customer', 'fullName email phone address')
+                                    .populate('workshop', 'workshopName'); // <--- THIS IS KEY! Make sure 'workshopName' is populated.
+                                                                        // I'll ensure 'workshopName' is explicitly requested here.
         if (!booking) {
             return res.status(404).json({ success: false, message: 'Booking not found or not for your workshop' });
         }
