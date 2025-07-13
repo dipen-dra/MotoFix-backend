@@ -6,9 +6,7 @@ const BookingSchema = new Schema(
     {
         customer: { type: Schema.Types.ObjectId, ref: 'User', required: true },
         service: { type: Schema.Types.ObjectId, ref: 'Service', required: true },
-        // --- NEW FIELD: Link booking to a specific workshop ---
         workshop: { type: Schema.Types.ObjectId, ref: 'Workshop', required: true },
-        // --- EXISTING FIELDS (keep as is) ---
         bikeModel: { type: String, required: true },
         customerName: { type: String, required: true },
         serviceType: { type: String, required: true },
@@ -40,16 +38,15 @@ const BookingSchema = new Schema(
             type: Boolean,
             default: false
         },
-        // --- NEW FIELDS: For pickup/drop-off functionality ---
-        pickupDropoffRequested: { // true if user requested pickup/drop-off service
+        pickupDropoffRequested: { 
             type: Boolean,
             default: false
         },
-        pickupDropoffAddress: { // If different from user's primary address
+        pickupDropoffAddress: { 
             type: String,
             default: ''
         },
-        pickupDropoffCost: { // Calculated cost for pickup/drop-off
+        pickupDropoffCost: { 
             type: Number,
             default: 0
         }

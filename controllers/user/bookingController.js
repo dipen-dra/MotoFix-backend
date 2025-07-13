@@ -1,25 +1,19 @@
-/**
- * @file controllers/user/bookingController.js
- * @description Controller for user-facing booking operations.
- */
+// controllers/user/bookingController.js
 
-// --- MODIFIED: Use require() for all imports ---
 const Booking = require('../../models/Booking.js');
 const Service = require('../../models/Service.js');
 const User = require('../../models/User.js');
-const Workshop = require('../../models/Workshop.js'); // Import Workshop model
-const axios = require('axios'); // For Khalti/eSewa, but now needs to be imported with require
+const Workshop = require('../../models/Workshop.js');
+const axios = require('axios');
 const sendEmail = require('../../utils/sendEmail.js');
 
-// --- Icon URLs for direct use in email HTML for better reliability ---
-const SUCCESS_ICON_URL = 'https://cdn.vectorstock.com/i/500p/20/36/3d-green-check-icon-tick-mark-symbol-vector-56142036.jpg'; // Green tick icon
-const CANCEL_ICON_URL = 'https://media.istockphoto.com/id/1132722548/vector/round-red-x-mark-line-icon-button-cross-symbol-on-white-background.jpg?s=612x612&w=0&k=20&c=QnHlhWesKpmbov2MFn2yAMg6oqDS8YXmC_iDsPK_BXQ=';  // Red cross icon
+const SUCCESS_ICON_URL = 'https://cdn.vectorstock.com/i/500p/20/36/3d-green-check-icon-tick-mark-symbol-vector-56142036.jpg';
+const CANCEL_ICON_URL = 'https://media.istockphoto.com/id/1132722548/vector/round-red-x-mark-line-icon-button-cross-symbol-on-white-background.jpg?s=612x612&w=0&k=20&c=QnHlhWesKpmbov2MFn2yAMg6oqDS8YXmC_iDsPK_BXQ='; 
 
-// Helper function to award loyalty points
 const awardLoyaltyPoints = async (userId) => {
     const user = await User.findById(userId);
     if (user) {
-        const pointsToAdd = Math.floor(Math.random() * 11) + 10; // 10 to 20 points
+        const pointsToAdd = Math.floor(Math.random() * 11) + 10;
         user.loyaltyPoints = (user.loyaltyPoints || 0) + pointsToAdd;
         await user.save();
         return pointsToAdd;
@@ -27,7 +21,6 @@ const awardLoyaltyPoints = async (userId) => {
     return 0;
 };
 
-// --- MODIFIED: Use exports.functionName for consistency ---
 exports.getUserBookings = async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
@@ -38,7 +31,7 @@ exports.getUserBookings = async (req, res) => {
 
         const totalItems = await Booking.countDocuments(query);
         const bookings = await Booking.find(query)
-            .populate('workshop', 'workshopName address phone') // Populate workshop details
+            .populate('workshop', 'workshopName address phone')
             .sort({ createdAt: -1 })
             .limit(limit)
             .skip(skip);
@@ -55,11 +48,10 @@ exports.getUserBookings = async (req, res) => {
     }
 };
 
-// --- MODIFIED: Use exports.functionName for consistency ---
 exports.getUserBookingById = async (req, res) => {
     try {
         const booking = await Booking.findOne({ _id: req.params.id, customer: req.user.id })
-                                     .populate('workshop', 'workshopName address phone'); // Populate workshop details
+                                     .populate('workshop', 'workshopName address phone');
         if (!booking) {
             return res.status(404).json({ success: false, message: 'Booking not found or you are not authorized.' });
         }
@@ -70,11 +62,10 @@ exports.getUserBookingById = async (req, res) => {
     }
 };
 
-// --- MODIFIED: Use exports.functionName for consistency ---
 exports.getPendingBookings = async (req, res) => {
     try {
         const bookings = await Booking.find({ customer: req.user.id, paymentStatus: 'Pending', status: { $ne: 'Cancelled' } })
-                                     .populate('workshop', 'workshopName address phone') // Populate workshop details
+                                     .populate('workshop', 'workshopName address phone')
                                      .sort({ createdAt: -1 });
         res.json({ success: true, data: bookings });
     } catch (error) {
@@ -83,13 +74,12 @@ exports.getPendingBookings = async (req, res) => {
     }
 };
 
-// --- MODIFIED: Use exports.functionName for consistency ---
 exports.getBookingHistory = async (req, res) => {
     try {
         const query = { customer: req.user.id, paymentStatus: 'Paid' };
 
         const bookings = await Booking.find(query)
-                                     .populate('workshop', 'workshopName address phone') // Populate workshop details
+                                     .populate('workshop', 'workshopName address phone')
                                      .sort({ createdAt: -1 });
             
         res.json({
@@ -102,16 +92,15 @@ exports.getBookingHistory = async (req, res) => {
     }
 };
 
-// --- MODIFIED: Use exports.functionName for consistency ---
 exports.createBooking = async (req, res) => {
     const { 
         serviceId, 
         bikeModel, 
         date, 
         notes, 
-        workshopId, // NEW: Workshop ID
-        pickupDropoffRequested, // NEW: Boolean flag
-        pickupDropoffAddress // NEW: Optional custom pickup address
+        workshopId, 
+        pickupDropoffRequested, 
+        pickupDropoffAddress 
     } = req.body;
 
     if (!serviceId || !bikeModel || !date || !workshopId) {
@@ -127,7 +116,6 @@ exports.createBooking = async (req, res) => {
         if (!service) return res.status(404).json({ success: false, message: 'Service not found.' });
         if (!workshop) return res.status(404).json({ success: false, message: 'Workshop not found.' });
 
-        // Ensure the service actually belongs to the selected workshop
         if (!service.workshop.equals(workshop._id)) {
             return res.status(400).json({ success: false, message: 'Service does not belong to the selected workshop.' });
         }
@@ -140,12 +128,8 @@ exports.createBooking = async (req, res) => {
                 return res.status(400).json({ success: false, message: 'The selected workshop does not offer pickup/drop-off services.' });
             }
             
-            // Determine the coordinates for distance calculation
             let userCoords = user.location?.coordinates;
             
-            // If a custom pickup address is provided, and it's different from the user's saved address,
-            // we should ideally geocode it. For now, if no coordinates are available for the user
-            // or the workshop, we can't calculate cost.
             if (!userCoords || (userCoords[0] === 0 && userCoords[1] === 0)) {
                  return res.status(400).json({ success: false, message: 'Your location is required for pickup/drop-off service. Please update your profile.' });
             }
@@ -153,21 +137,20 @@ exports.createBooking = async (req, res) => {
             const workshopCoords = workshop.location?.coordinates;
 
             if (userCoords && workshopCoords && userCoords[0] !== 0 && userCoords[1] !== 0 && workshopCoords[0] !== 0 && workshopCoords[1] !== 0) {
-                 // Calculate distance between user and workshop (Haversine formula approximation)
-                const R = 6371; // Radius of Earth in kilometers
+                 const R = 6371; 
                 const dLat = (workshopCoords[1] - userCoords[1]) * Math.PI / 180;
                 const dLon = (workshopCoords[0] - userCoords[0]) * Math.PI / 180;
                 const a = 
                     Math.sin(dLat/2) * Math.sin(dLat/2) +
                     Math.cos(userCoords[1] * Math.PI / 180) * Math.cos(workshopCoords[1] * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
                 const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-                const distanceKm = R * c; // Distance in km
+                const distanceKm = R * c; 
 
-                calculatedPickupDropoffCost = distanceKm * workshop.pickupDropoffCostPerKm * 2; // Multiply by 2 for round trip
-                calculatedPickupDropoffCost = Math.round(calculatedPickupDropoffCost / 10) * 10; // Round to nearest 10
+                calculatedPickupDropoffCost = distanceKm * workshop.pickupDropoffCostPerKm * 2;
+                calculatedPickupDropoffCost = Math.round(calculatedPickupDropoffCost / 10) * 10;
             } else {
                 console.warn("Could not calculate pickup/drop-off cost due to missing or zero coordinates. Setting to 0.");
-                calculatedPickupDropoffCost = 0; // Fallback if coordinates are missing
+                calculatedPickupDropoffCost = 0;
             }
             
             finalBookingAddress = pickupDropoffAddress || user.address;
@@ -178,15 +161,15 @@ exports.createBooking = async (req, res) => {
 
         const booking = new Booking({
             customer: user._id,
-            workshop: workshop._id, // Assign booking to the selected workshop
+            workshop: workshop._id,
             service: serviceId,
             bikeModel,
             date,
             notes,
             customerName: user.fullName,
             serviceType: service.name,
-            totalCost: totalCostExcludingPickup, // This is service cost, before pickup/drop-off
-            finalAmount: initialFinalAmount, // This includes pickup/drop-off if applicable
+            totalCost: totalCostExcludingPickup,
+            finalAmount: initialFinalAmount,
             status: 'Pending',
             paymentStatus: 'Pending',
             isPaid: false,
@@ -203,7 +186,6 @@ exports.createBooking = async (req, res) => {
     }
 };
 
-// --- MODIFIED: Use exports.functionName for consistency ---
 exports.updateUserBooking = async (req, res) => {
     try {
         const { serviceId, bikeModel, date, notes, pickupDropoffRequested, pickupDropoffAddress } = req.body;
@@ -215,16 +197,14 @@ exports.updateUserBooking = async (req, res) => {
             return res.status(400).json({ success: false, message: `Cannot edit a booking that is already in progress, paid, or has a discount.` });
         }
 
-        let newServicePrice = booking.totalCost; // Default to current
-        let newPickupDropoffCost = booking.pickupDropoffCost; // Default to current
-        let finalBookingAddress = booking.pickupDropoffAddress; // Default to current
+        let newServicePrice = booking.totalCost;
+        let newPickupDropoffCost = booking.pickupDropoffCost;
+        let finalBookingAddress = booking.pickupDropoffAddress;
 
-        // If service is being changed
         if (serviceId && serviceId.toString() !== booking.service.toString()) {
             const newService = await Service.findById(serviceId);
             if (!newService) return res.status(404).json({ success: false, message: 'New service not found.' });
             
-            // Ensure new service belongs to the SAME workshop as original booking
             if (!newService.workshop.equals(booking.workshop)) {
                 return res.status(400).json({ success: false, message: 'Cannot change service to one from a different workshop.' });
             }
@@ -234,7 +214,6 @@ exports.updateUserBooking = async (req, res) => {
             newServicePrice = newService.price;
         }
 
-        // Handle pickup/drop-off updates
         let pickupDropoffChanged = false;
         if (pickupDropoffRequested !== undefined && pickupDropoffRequested !== booking.pickupDropoffRequested) {
             pickupDropoffChanged = true;
@@ -246,11 +225,9 @@ exports.updateUserBooking = async (req, res) => {
         }
 
         if (pickupDropoffChanged || (serviceId && serviceId.toString() !== booking.service.toString())) {
-            // Recalculate pickup/drop-off cost if pickup/drop-off status changes, or service changes
             const workshop = await Workshop.findById(booking.workshop);
             if (!workshop) {
                 console.error("Workshop not found for booking during update cost recalculation:", booking.workshop);
-                // Decide how to handle: error, or proceed without pickup cost
                 newPickupDropoffCost = 0; 
                 if (booking.pickupDropoffRequested) {
                      return res.status(500).json({ success: false, message: "Workshop data missing for pickup calculation." });
@@ -262,46 +239,43 @@ exports.updateUserBooking = async (req, res) => {
 
                 const user = await User.findById(req.user.id);
                 let userCoords = user.location?.coordinates;
-                finalBookingAddress = booking.pickupDropoffAddress || user.address; // Use updated address if present
+                finalBookingAddress = booking.pickupDropoffAddress || user.address;
 
-                // If pickup/drop-off is still requested, recalculate based on potentially new service or address
                 if (userCoords && workshop.location?.coordinates && userCoords[0] !== 0 && userCoords[1] !== 0 && workshop.location.coordinates[0] !== 0 && workshop.location.coordinates[1] !== 0) {
-                     const R = 6371; // Radius of Earth in kilometers
+                     const R = 6371; 
                     const dLat = (workshop.location.coordinates[1] - userCoords[1]) * Math.PI / 180;
                     const dLon = (workshop.location.coordinates[0] - userCoords[0]) * Math.PI / 180;
                     const a = 
                         Math.sin(dLat/2) * Math.sin(dLat/2) +
                         Math.cos(userCoords[1] * Math.PI / 180) * Math.cos(workshop.location.coordinates[1] * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
                     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-                    const distanceKm = R * c; // Distance in km
+                    const distanceKm = R * c; 
 
-                    newPickupDropoffCost = distanceKm * workshop.pickupDropoffCostPerKm * 2; // Multiply by 2 for round trip
-                    newPickupDropoffCost = Math.round(newPickupDropoffCost / 10) * 10; // Round to nearest 10
+                    newPickupDropoffCost = distanceKm * workshop.pickupDropoffCostPerKm * 2;
+                    newPickupDropoffCost = Math.round(newPickupDropoffCost / 10) * 10;
                 } else {
                     console.warn("Could not calculate pickup/drop-off cost during update due to missing coordinates.");
                     newPickupDropoffCost = 0;
                 }
             } else {
-                newPickupDropoffCost = 0; // Pickup/drop-off no longer requested
-                finalBookingAddress = ''; // Clear address if service is no longer needed
+                newPickupDropoffCost = 0;
+                finalBookingAddress = '';
             }
         }
         
         booking.bikeModel = bikeModel || booking.bikeModel;
         booking.date = date || booking.date;
         booking.notes = notes !== undefined ? notes : booking.notes;
-        booking.totalCost = newServicePrice; // Update base service cost
+        booking.totalCost = newServicePrice;
         booking.pickupDropoffCost = newPickupDropoffCost;
         booking.pickupDropoffAddress = finalBookingAddress;
 
 
-        // Recalculate final amount based on updated totalCost and pickup/drop-off cost
         let newFinalAmount = newServicePrice + newPickupDropoffCost;
         if (booking.discountApplied) {
-            // Reapply discount to the new total cost
             const discountValue = newFinalAmount * 0.20;
             newFinalAmount -= discountValue;
-            booking.discountAmount = discountValue; // Update stored discount amount
+            booking.discountAmount = discountValue;
         }
         booking.finalAmount = newFinalAmount;
 
@@ -313,7 +287,6 @@ exports.updateUserBooking = async (req, res) => {
     }
 };
 
-// --- MODIFIED: Use exports.functionName for consistency ---
 exports.confirmPayment = async (req, res) => {
     const { paymentMethod } = req.body;
     if (paymentMethod !== 'COD') return res.status(400).json({ success: false, message: 'This route is only for COD payments.' });
@@ -321,7 +294,7 @@ exports.confirmPayment = async (req, res) => {
     try {
         const booking = await Booking.findById(req.params.id)
                                      .populate('customer', 'fullName email')
-                                     .populate('workshop', 'workshopName address phone'); // Populate workshop for email
+                                     .populate('workshop', 'workshopName address phone');
 
         if (!booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
         if (booking.customer._id.toString() !== req.user.id) return res.status(403).json({ success: false, message: 'Not authorized.' });
@@ -369,7 +342,6 @@ exports.confirmPayment = async (req, res) => {
     }
 };
 
-// --- MODIFIED: Use exports.functionName for consistency ---
 exports.verifyKhaltiPayment = async (req, res) => {
     const { token, amount, booking_id } = req.body;
     if (!token || !amount || !booking_id) return res.status(400).json({ success: false, message: 'Missing payment verification details.' });
@@ -384,7 +356,7 @@ exports.verifyKhaltiPayment = async (req, res) => {
         if (khaltiResponse.data && khaltiResponse.data.idx) {
             const booking = await Booking.findById(booking_id)
                                          .populate('customer', 'fullName email')
-                                         .populate('workshop', 'workshopName address phone'); // Populate workshop for email
+                                         .populate('workshop', 'workshopName address phone');
             if (!booking) return res.status(404).json({ success: false, message: 'Booking not found after payment.' });
             if (booking.isPaid) return res.status(400).json({ success: false, message: 'Booking is already paid.' });
 
@@ -434,7 +406,6 @@ exports.verifyKhaltiPayment = async (req, res) => {
     }
 };
 
-// --- MODIFIED: Use exports.functionName for consistency ---
 exports.applyLoyaltyDiscount = async (req, res) => {
     try {
         const booking = await Booking.findById(req.params.id);
@@ -450,7 +421,6 @@ exports.applyLoyaltyDiscount = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Not enough loyalty points. You need at least 100.' });
         }
 
-        // Calculate discount based on current finalAmount (which includes pickup/dropoff if applicable)
         const discountValue = booking.finalAmount * 0.20;
         booking.finalAmount = booking.finalAmount - discountValue;
         booking.discountApplied = true;
@@ -473,7 +443,6 @@ exports.applyLoyaltyDiscount = async (req, res) => {
     }
 };
 
-// --- MODIFIED: Use exports.functionName for consistency ---
 exports.deleteUserBooking = async (req, res) => {
     try {
         const booking = await Booking.findById(req.params.id);
@@ -485,7 +454,7 @@ exports.deleteUserBooking = async (req, res) => {
         if (booking.discountApplied) {
             const user = await User.findById(req.user.id);
             if (user) {
-                user.loyaltyPoints += 100; // Refund the 100 points
+                user.loyaltyPoints += 100;
                 await user.save();
             }
         }

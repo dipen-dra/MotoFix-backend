@@ -1,3 +1,4 @@
+// routes/admin/adminUserRoute.js
 const express = require("express");
 const router = express.Router();
 const { 
@@ -10,14 +11,14 @@ const {
 } = require("../../controllers/admin/usermanagement");
 const { authenticateUser, isAdmin } = require("../../middlewares/authorizedUser");
 
-// Note: Ensure that every function listed in the 'require' statement above
-// is correctly defined and exported in your usermanagement.js file.
+router.use(authenticateUser, isAdmin); 
 
-router.get("/", authenticateUser, isAdmin, getUsers);
-router.get("/:id", authenticateUser, isAdmin, getOneUser);
-router.post("/create", authenticateUser, isAdmin, createUser);
-router.put("/:id", authenticateUser, isAdmin, updateOneUser);
-router.delete("/:id", authenticateUser, isAdmin, deleteOneUser);
-router.put("/:id/promote", authenticateUser, isAdmin, promoteUserToAdmin);
+router.get("/", getUsers);
+router.get("/:id", getOneUser);
+router.post("/create", createUser);
+router.put("/:id", updateOneUser);
+router.delete("/:id", deleteOneUser);
+
+router.put("/:id/promote", promoteUserToAdmin);
 
 module.exports = router;

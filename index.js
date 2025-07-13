@@ -1,147 +1,8 @@
-// require('dotenv').config();
-// const express = require('express');
-// const cors = require('cors');
-// const path = require('path');
-// const http = require('http');
-// const { Server } = require("socket.io");
-// const connectDB = require('./config/db');
-// const Message = require('./models/Message');
-
-// const app = express();
-// const server = http.createServer(app);
-
-// // Connect to MongoDB
-// connectDB();
-
-// // Setup Socket.IO
-// const io = new Server(server, {
-//     cors: {
-//         origin: "http://localhost:5173", // Frontend URL
-//         methods: ["GET", "POST", "PUT", "DELETE"]
-//     }
-// });
-
-// // Attach io instance to app for access in routes
-// app.set('socketio', io);
-
-// // Middleware
-// app.use(cors());
-// app.use(express.json());
-// app.use(express.urlencoded({ extended: false }));
-
-// // Serve static files from 'uploads'
-// app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-// // ================= API ROUTES ==================
-
-// // Authentication & User Management
-// app.use('/api/auth', require('./routes/userRoute'));
-
-// // Admin Routes
-// app.use('/api/admin/users', require('./routes/admin/adminUserRoute'));
-// app.use('/api/admin/bookings', require('./routes/admin/bookingRoute'));
-// app.use('/api/admin/services', require('./routes/admin/serviceRoute'));
-// app.use('/api/admin/profile', require('./routes/admin/profileRoute'));
-// app.use('/api/admin/dashboard', require('./routes/admin/dashboardRoute'));
-// app.use('/api/admin/chat', require('./routes/admin/chatRoute'));
-
-// // User Routes
-// app.use('/api/user', require('./routes/user/dashboardRoute'));
-// app.use('/api/user', require('./routes/user/bookingRoute'));
-// app.use('/api/user', require('./routes/user/serviceRoute'));
-// app.use('/api/user', require('./routes/user/profileRoute'));
-// app.use('/api/user/chat', require('./routes/user/chatRoute'));
-
-// // Payment Integration
-// app.use('/api/payment/esewa', require('./routes/esewaRoute'));
-
-// // Gemini AI route
-// app.use('/api/gemini', require('./routes/gemini'));
-
-// // --- NEW REVIEW ROUTE ---
-// app.use('/api/reviews', require('./routes/reviewRoute'));
-
-
-// // ================= SOCKET.IO ==================
-
-// io.on('connection', (socket) => {
-//     socket.on('join_room', async (data) => {
-//         const { roomName, userId } = data;
-//         socket.join(roomName);
-//         try {
-//             await Message.updateMany(
-//                 { room: roomName, authorId: { $ne: userId }, isRead: false },
-//                 { $set: { isRead: true } }
-//             );
-//             const eventName = userId === 'admin_user' ? 'messages_read_by_admin' : 'messages_read_by_user';
-//             socket.emit(eventName, { room: roomName });
-
-//             let historyQuery = { room: roomName };
-//             if (userId === 'admin_user') {
-//                 historyQuery.clearedForAdmin = { $ne: true };
-//             } else {
-//                 historyQuery.clearedForUser = { $ne: true };
-//             }
-//             const history = await Message.find(historyQuery).sort({ timestamp: 1 }).limit(100);
-//             socket.emit('chat_history', history);
-//         } catch (error) {
-//             console.error(`Error in join_room for room ${roomName}:`, error);
-//         }
-//     });
-
-//     socket.on('send_message', async (data) => {
-//         if (!data.message || data.message.trim() === '') return;
-//         try {
-//             const message = new Message({
-//                 room: data.room,
-//                 author: data.author,
-//                 authorId: data.authorId,
-//                 message: data.message,
-//                 isRead: false
-//             });
-//             await message.save();
-//             io.to(data.room).emit('receive_message', message);
-//             io.to(data.room).emit('new_message_notification', {
-//                 room: data.room,
-//                 authorId: data.authorId,
-//                 message: data.message
-//             });
-//         } catch (error) {
-//             console.error('Error saving message:', error);
-//         }
-//     });
-
-//     socket.on('disconnect', () => {
-//         // console.log(`❌ User Disconnected: ${socket.id}`);
-//     });
-// });
-
-// // ================= ERROR HANDLING ==================
-
-// app.use((req, res, next) => {
-//   const error = new Error(`Not Found - ${req.originalUrl}`);
-//   res.status(404);
-//   next(error);
-// });
-
-// app.use((err, req, res, next) => {
-//   const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
-//   res.status(statusCode);
-//   res.json({
-//     message: err.message,
-//     stack: process.env.NODE_ENV === 'production' ? '🥞' : err.stack,
-//   });
-// });
-
-// // ================= START SERVER ==================
-
-// const PORT = process.env.PORT || 5050;
-// server.listen(PORT, () => {
-//     console.log(`🚀 Server is running on port ${PORT}`);
-// });
 
 
 
+
+// index.js
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -150,6 +11,7 @@ const http = require('http');
 const { Server } = require("socket.io");
 const connectDB = require('./config/db');
 const Message = require('./models/Message');
+const fs = require('fs'); // Import fs for directory creation
 
 const app = express();
 const server = http.createServer(app);
@@ -173,6 +35,22 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// --- Ensure upload directories exist ---
+const uploadDirs = [
+    path.join(__dirname, 'uploads', 'chat'),
+    path.join(__dirname, 'uploads', 'profilePictures'),
+    path.join(__dirname, 'uploads', 'companyDocuments'), // Ensure this folder exists or is created
+    path.join(__dirname, 'uploads', 'serviceImages')
+];
+
+uploadDirs.forEach(dir => {
+    if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+        console.log(`Created upload directory: ${dir}`);
+    }
+});
+// --- End directory creation ---
+
 // Serve static files from 'uploads'
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -181,20 +59,26 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Authentication & User Management
 app.use('/api/auth', require('./routes/userRoute'));
 
-// Admin Routes (all should now be workshop-scoped by middleware)
+// Admin Routes
 app.use('/api/admin/users', require('./routes/admin/adminUserRoute'));
 app.use('/api/admin/bookings', require('./routes/admin/bookingRoute'));
 app.use('/api/admin/services', require('./routes/admin/serviceRoute'));
 app.use('/api/admin/profile', require('./routes/admin/profileRoute'));
 app.use('/api/admin/dashboard', require('./routes/admin/dashboardRoute'));
 app.use('/api/admin/chat', require('./routes/admin/chatRoute'));
+app.use('/api/admin/workshops', require('./routes/admin/workshopRoute')); 
+// --- MISSING ROUTE MOUNTING: Ensure this line is present ---
+// NEW - Correct URL
+app.use('/api/admin/applications', require('./routes/admin/workshopApplicationManagementRoute')); 
+
 
 // User Routes
 app.use('/api/user', require('./routes/user/dashboardRoute'));
 app.use('/api/user', require('./routes/user/bookingRoute'));
-app.use('/api/user', require('./routes/user/serviceRoute')); // This now handles location filtering
+app.use('/api/user', require('./routes/user/serviceRoute'));
 app.use('/api/user', require('./routes/user/profileRoute'));
 app.use('/api/user/chat', require('./routes/user/chatRoute'));
+app.use('/api/user', require('./routes/user/workshopApplicationRoute')); 
 
 // Payment Integration
 app.use('/api/payment/esewa', require('./routes/esewaRoute'));
@@ -225,7 +109,6 @@ io.on('connection', (socket) => {
             } else {
                 historyQuery.clearedForUser = { $ne: true };
             }
-            // Sort by createdAt for consistency, assuming it's correctly used in models/Message.js
             const history = await Message.find(historyQuery).sort({ createdAt: 1 }).limit(100); 
             socket.emit('chat_history', history);
         } catch (error) {
@@ -234,8 +117,8 @@ io.on('connection', (socket) => {
     });
 
     socket.on('send_message', async (data) => {
-        if (!data.message && !data.fileUrl) return; // Allow sending only files
-        if (data.message && data.message.trim() === '') return; // Prevent sending empty messages if text is provided
+        if (!data.message && !data.fileUrl) return; 
+        if (data.message && data.message.trim() === '') return; 
 
         try {
             const message = new Message({
@@ -243,9 +126,9 @@ io.on('connection', (socket) => {
                 author: data.author,
                 authorId: data.authorId,
                 message: data.message,
-                fileUrl: data.fileUrl, // Pass fileUrl from client/upload route
-                fileName: data.fileName, // Pass fileName
-                fileType: data.fileType, // Pass fileType
+                fileUrl: data.fileUrl, 
+                fileName: data.fileName, 
+                fileType: data.fileType, 
                 isRead: false
             });
             await message.save();

@@ -1,23 +1,28 @@
+// controllers/admin/serviceController.js
 const Service = require("../../models/Service");
 const fs = require('fs');
 const path = require('path');
+const Workshop = require('../../models/Workshop'); // Import Workshop model
 
-// Get all services with pagination (MODIFIED: filter by workshop)
 exports.getServices = async (req, res) => {
     try {
-        const workshopId = req.workshopId; // Set by isWorkshopAdmin middleware
-        if (!workshopId) {
-            return res.status(403).json({ success: false, message: "Admin not linked to a workshop." });
+        let query = {};
+
+        if (req.user.role === 'admin') {
+            const workshopId = req.workshopId;
+            if (!workshopId) {
+                return res.status(403).json({ success: false, message: "Admin not linked to a workshop." });
+            }
+            query.workshop = workshopId;
         }
 
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 6;
         const skip = (page - 1) * limit;
         
-        const query = { workshop: workshopId }; // Filter services by workshop
-
         const totalItems = await Service.countDocuments(query);
         const services = await Service.find(query)
+            .populate('workshop', 'workshopName')
             .sort({ createdAt: -1 })
             .limit(limit)
             .skip(skip);
@@ -34,33 +39,45 @@ exports.getServices = async (req, res) => {
     }
 };
 
-// CREATE a new service with an image and duration (MODIFIED: assign to workshop)
 exports.createService = async (req, res) => {
-    const { name, description, price, duration } = req.body;
-    const workshopId = req.workshopId; // Set by isWorkshopAdmin middleware
+    const { name, description, price, duration, workshopId } = req.body;
+    let targetWorkshopId = null;
 
-    if (!workshopId) {
-        // If no workshopId, delete uploaded file immediately
-        if (req.file) {
-            fs.unlinkSync(req.file.path);
+    if (req.user.role === 'admin') {
+        targetWorkshopId = req.workshopId;
+        if (!targetWorkshopId) {
+            if (req.file) { fs.unlinkSync(path.join(__dirname, '../../', req.file.path)); }
+            return res.status(403).json({ success: false, message: "Admin not linked to a workshop." });
         }
-        return res.status(403).json({ success: false, message: "Admin not linked to a workshop." });
+    } else if (req.user.role === 'superadmin') {
+        targetWorkshopId = workshopId;
+        if (!targetWorkshopId) {
+            if (req.file) { fs.unlinkSync(path.join(__dirname, '../../', req.file.path)); }
+            return res.status(400).json({ success: false, message: "Superadmin must provide a workshopId to create a service." });
+        }
+        const existingWorkshop = await Workshop.findById(targetWorkshopId);
+        if (!existingWorkshop) {
+            if (req.file) { fs.unlinkSync(path.join(__dirname, '../../', req.file.path)); }
+            return res.status(404).json({ success: false, message: "Specified workshop not found." });
+        }
+    } else {
+        if (req.file) { fs.unlinkSync(path.join(__dirname, '../../', req.file.path)); }
+        return res.status(403).json({ success: false, message: "Access denied." });
     }
 
     if (!req.file) {
         return res.status(400).json({ success: false, message: "Service image is required." });
     }
     if (!name || !price) {
-        fs.unlinkSync(req.file.path);
+        fs.unlinkSync(path.join(__dirname, '../../', req.file.path));
         return res.status(400).json({ success: false, message: "Name and price are required." });
     }
     
     try {
-        // Optional: Check if a service with the same name already exists for this workshop
-        const existingService = await Service.findOne({ name, workshop: workshopId });
+        const existingService = await Service.findOne({ name, workshop: targetWorkshopId });
         if (existingService) {
-            fs.unlinkSync(req.file.path); // Delete the uploaded file if service already exists
-            return res.status(400).json({ success: false, message: "A service with this name already exists for your workshop." });
+            fs.unlinkSync(path.join(__dirname, '../../', req.file.path));
+            return res.status(400).json({ success: false, message: `A service with this name already exists for this workshop.` });
         }
 
         const newService = new Service({
@@ -69,83 +86,102 @@ exports.createService = async (req, res) => {
             price,
             duration,
             image: req.file.path,
-            workshop: workshopId // Assign service to the admin's workshop
+            workshop: targetWorkshopId
         });
         await newService.save();
         res.status(201).json({ success: true, message: "Service created successfully.", data: newService });
     } catch (error) {
         if (req.file) {
-            fs.unlinkSync(req.file.path);
+            fs.unlinkSync(path.join(__dirname, '../../', req.file.path));
         }
         console.error("Admin createService Error:", error);
         res.status(500).json({ success: false, message: "Failed to create service", error: error.message });
     }
 };
 
-// UPDATE a service, with optional new image and duration (MODIFIED: filter by workshop)
 exports.updateService = async (req, res) => {
     try {
-        const workshopId = req.workshopId; // Set by isWorkshopAdmin middleware
-        if (!workshopId) {
-            if (req.file) fs.unlinkSync(req.file.path);
-            return res.status(403).json({ success: false, message: "Admin not linked to a workshop." });
+        let findQuery = { _id: req.params.id };
+
+        if (req.user.role === 'admin') {
+            const workshopId = req.workshopId;
+            if (!workshopId) {
+                if (req.file) fs.unlinkSync(path.join(__dirname, '../../', req.file.path));
+                return res.status(403).json({ success: false, message: "Admin not linked to a workshop." });
+            }
+            findQuery.workshop = workshopId;
+        } else if (req.user.role === 'superadmin') {
+            // Superadmin can update any service by ID, no workshop filter in findQuery
+        } else {
+            if (req.file) fs.unlinkSync(path.join(__dirname, '../../', req.file.path));
+            return res.status(403).json({ success: false, message: "Access denied." });
         }
 
-        // Find service by ID and ensure it belongs to the current workshop
-        const service = await Service.findOne({ _id: req.params.id, workshop: workshopId });
+        const service = await Service.findOne(findQuery);
         if (!service) {
-            if (req.file) fs.unlinkSync(req.file.path);
-            return res.status(404).json({ success: false, message: "Service not found or not for your workshop." });
+            if (req.file) fs.unlinkSync(path.join(__dirname, '../../', req.file.path));
+            return res.status(404).json({ success: false, message: "Service not found or not authorized for your role/workshop." });
         }
 
-        const { name, description, price, duration } = req.body;
+        const { name, description, price, duration, workshopId } = req.body;
         const updateData = { name, description, price, duration };
 
-        // Optional: Check for duplicate name for this workshop during update
+        if (req.user.role === 'superadmin' && workshopId && workshopId !== service.workshop.toString()) {
+            const newWorkshop = await Workshop.findById(workshopId);
+            if (!newWorkshop) {
+                if (req.file) fs.unlinkSync(path.join(__dirname, '../../', req.file.path));
+                return res.status(404).json({ success: false, message: "New workshop not found." });
+            }
+            service.workshop = newWorkshop._id;
+        }
+
         if (name && name !== service.name) {
-            const existingService = await Service.findOne({ name, workshop: workshopId });
+            const checkWorkshopId = service.workshop;
+            const existingService = await Service.findOne({ name, workshop: checkWorkshopId });
             if (existingService && !existingService._id.equals(service._id)) {
-                if (req.file) fs.unlinkSync(req.file.path);
-                return res.status(400).json({ success: false, message: "Another service with this name already exists for your workshop." });
+                if (req.file) fs.unlinkSync(path.join(__dirname, '../../', req.file.path));
+                return res.status(400).json({ success: false, message: `A service with this name already exists for this workshop.` });
             }
         }
 
         if (req.file) {
-            if (service.image && fs.existsSync(service.image)) {
-                fs.unlinkSync(service.image);
+            if (service.image && fs.existsSync(path.join(__dirname, '../../', service.image))) { // Correct path for unlinkSync
+                fs.unlinkSync(path.join(__dirname, '../../', service.image));
             }
             updateData.image = req.file.path;
         }
 
-        // Using findByIdAndUpdate directly on the found service, which implicitly handles ID.
-        Object.assign(service, updateData); // Merge updateData into the found service object
-        const updatedService = await service.save(); // Save to trigger validators and pre/post hooks if any
+        Object.assign(service, updateData);
+        const updatedService = await service.save();
 
         res.status(200).json({ success: true, message: "Service updated successfully.", data: updatedService });
 
     } catch (error) {
-        if (req.file) fs.unlinkSync(req.file.path);
+        if (req.file) fs.unlinkSync(path.join(__dirname, '../../', req.file.path));
         console.error("Admin updateService Error:", error);
         res.status(500).json({ success: false, message: "Server error.", error: error.message });
     }
 };
 
-// DELETE a service and its associated image (MODIFIED: filter by workshop)
 exports.deleteService = async (req, res) => {
     try {
-        const workshopId = req.workshopId; // Set by isWorkshopAdmin middleware
-        if (!workshopId) {
-            return res.status(403).json({ success: false, message: "Admin not linked to a workshop." });
+        let findQuery = { _id: req.params.id };
+
+        if (req.user.role === 'admin') {
+            const workshopId = req.workshopId;
+            if (!workshopId) {
+                return res.status(403).json({ success: false, message: "Admin not linked to a workshop." });
+            }
+            findQuery.workshop = workshopId;
         }
 
-        // Find service by ID and ensure it belongs to the current workshop
-        const service = await Service.findOne({ _id: req.params.id, workshop: workshopId });
+        const service = await Service.findOne(findQuery);
         if (!service) {
-            return res.status(404).json({ success: false, message: "Service not found or not for your workshop." });
+            return res.status(404).json({ success: false, message: "Service not found or not authorized for your role/workshop." });
         }
 
-        if (service.image && fs.existsSync(service.image)) {
-            fs.unlinkSync(service.image);
+        if (service.image && fs.existsSync(path.join(__dirname, '../../', service.image))) { // Correct path for unlinkSync
+            fs.unlinkSync(path.join(__dirname, '../../', service.image));
         }
 
         await Service.findByIdAndDelete(req.params.id);
@@ -157,24 +193,27 @@ exports.deleteService = async (req, res) => {
     }
 };
 
-// @desc    Get a single service with all its reviews populated with user details. (MODIFIED: filter by workshop)
-// @route   GET /api/admin/services/:id/reviews
-// @access  Private (Admin)
 exports.getServiceWithReviews = async (req, res) => {
     try {
-        const workshopId = req.workshopId; // Set by isWorkshopAdmin middleware
-        if (!workshopId) {
-            return res.status(403).json({ success: false, message: "Admin not linked to a workshop." });
+        let findQuery = { _id: req.params.id };
+
+        if (req.user.role === 'admin') {
+            const workshopId = req.workshopId;
+            if (!workshopId) {
+                return res.status(403).json({ success: false, message: "Admin not linked to a workshop." });
+            }
+            findQuery.workshop = workshopId;
         }
 
-        const service = await Service.findOne({ _id: req.params.id, workshop: workshopId })
+        const service = await Service.findOne(findQuery)
             .populate({
                 path: 'reviews.user', 
                 select: 'fullName profilePicture' 
-            });
+            })
+            .populate('workshop', 'workshopName');
 
         if (!service) {
-            return res.status(404).json({ success: false, message: 'Service not found or not for your workshop' });
+            return res.status(404).json({ success: false, message: 'Service not found or not authorized for your role/workshop' });
         }
 
         res.status(200).json({ success: true, data: service });

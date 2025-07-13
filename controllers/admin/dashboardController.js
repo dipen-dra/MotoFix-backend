@@ -2,17 +2,19 @@
 
 const Booking = require('../../models/Booking.js');
 const User = require('../../models/User.js');
-const Workshop = require('../../models/Workshop.js'); // Import Workshop model
+const Workshop = require('../../models/Workshop.js');
 
 exports.getAnalytics = async (req, res) => {
     try {
-        const workshopId = req.workshopId; // Set by isWorkshopAdmin middleware
-        if (!workshopId) {
-            return res.status(403).json({ success: false, message: "Admin not linked to a workshop." });
-        }
+        let workshopMatch = {};
 
-        // Base match query to filter by workshop
-        const workshopMatch = { workshop: workshopId };
+        if (req.user.role === 'admin') {
+            const workshopId = req.workshopId;
+            if (!workshopId) {
+                return res.status(403).json({ success: false, message: "Admin not linked to a workshop." });
+            }
+            workshopMatch = { workshop: workshopId };
+        }
 
         const totalRevenueResult = await Booking.aggregate([
             { $match: { ...workshopMatch, status: 'Completed', isPaid: true } },
@@ -24,10 +26,11 @@ exports.getAnalytics = async (req, res) => {
         
         const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
         
-        // Count new users who made bookings with this workshop this month
-        const newUsers = await User.countDocuments({
-            _id: { $in: await Booking.distinct('customer', { ...workshopMatch, createdAt: { $gte: startOfMonth } }) }
-        });
+        let newUsersQuery = { createdAt: { $gte: startOfMonth } };
+        if (req.user.role === 'admin') {
+            newUsersQuery._id = { $in: await Booking.distinct('customer', workshopMatch) };
+        }
+        const newUsers = await User.countDocuments(newUsersQuery);
 
         const revenueData = await Booking.aggregate([
             { $match: { ...workshopMatch, status: 'Completed', isPaid: true } },

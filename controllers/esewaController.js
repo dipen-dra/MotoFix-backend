@@ -28,8 +28,8 @@ const awardLoyaltyPoints = async (userId) => {
     return 0;
 };
 
-// Define functions locally first, then export them in module.exports
-const initiateEsewaPayment = async (req, res) => { // Changed from exports.initiateEsewaPayment
+
+const initiateEsewaPayment = async (req, res) => {
     try {
         const { bookingId } = req.body;
         const booking = await Booking.findById(bookingId);
@@ -38,19 +38,19 @@ const initiateEsewaPayment = async (req, res) => { // Changed from exports.initi
         if (booking.finalAmount == null) return res.status(400).json({ message: 'Booking does not have a final amount to pay.' });
         if (booking.isPaid) return res.status(400).json({ message: 'Booking is already paid.' });
 
-
         const amountToPay = booking.finalAmount.toString();
         const signedFieldNames = 'total_amount,transaction_uuid,product_code';
         const signatureBaseString = `total_amount=${amountToPay},transaction_uuid=${bookingId},product_code=${ESEWA_SCD}`;
-        
+
         const hmac = crypto.createHmac('sha256', ESEWA_SECRET);
         hmac.update(signatureBaseString);
         const signature = hmac.digest('base64');
 
         const esewaData = {
             amount: amountToPay,
-            success_url: `http://localhost:5173/payment/esewa/success`,
-            failure_url: 'http://localhost:5173/payment/esewa/failure',
+            // Ensure these URLs are correct for your frontend and the environment (dev/prod)
+            success_url: `http://localhost:5173/#/user/my-payments?status=success&message=Payment successful!`,
+            failure_url: `http://localhost:5173/#/user/my-payments?status=failure&message=Payment failed or cancelled.`,
             product_delivery_charge: '0',
             product_service_charge: '0',
             product_code: ESEWA_SCD,
@@ -61,12 +61,54 @@ const initiateEsewaPayment = async (req, res) => { // Changed from exports.initi
             transaction_uuid: bookingId,
         };
 
+        console.log("eSewa Request Data:", esewaData); // Log the data being sent
+        console.log("Signature Base String:", signatureBaseString);
+        console.log("Calculated Signature:", signature);
+
         res.json({ ...esewaData, ESEWA_URL });
     } catch (error) {
         console.error('Error in initiateEsewaPayment:', error);
         res.status(500).json({ message: 'Server Error while initiating payment' });
     }
 };
+// const initiateEsewaPayment = async (req, res) => { // Changed from exports.initiateEsewaPayment
+//     try {
+//         const { bookingId } = req.body;
+//         const booking = await Booking.findById(bookingId);
+
+//         if (!booking) return res.status(404).json({ message: 'Booking not found' });
+//         if (booking.finalAmount == null) return res.status(400).json({ message: 'Booking does not have a final amount to pay.' });
+//         if (booking.isPaid) return res.status(400).json({ message: 'Booking is already paid.' });
+
+
+//         const amountToPay = booking.finalAmount.toString();
+//         const signedFieldNames = 'total_amount,transaction_uuid,product_code';
+//         const signatureBaseString = `total_amount=${amountToPay},transaction_uuid=${bookingId},product_code=${ESEWA_SCD}`;
+        
+//         const hmac = crypto.createHmac('sha256', ESEWA_SECRET);
+//         hmac.update(signatureBaseString);
+//         const signature = hmac.digest('base64');
+
+//         const esewaData = {
+//             amount: amountToPay,
+//             success_url: `http://localhost:5173/payment/esewa/success`,
+//             failure_url: 'http://localhost:5173/payment/esewa/failure',
+//             product_delivery_charge: '0',
+//             product_service_charge: '0',
+//             product_code: ESEWA_SCD,
+//             signature,
+//             signed_field_names: signedFieldNames,
+//             tax_amount: '0',
+//             total_amount: amountToPay,
+//             transaction_uuid: bookingId,
+//         };
+
+//         res.json({ ...esewaData, ESEWA_URL });
+//     } catch (error) {
+//         console.error('Error in initiateEsewaPayment:', error);
+//         res.status(500).json({ message: 'Server Error while initiating payment' });
+//     }
+// };
 
 const verifyEsewaPayment = async (req, res) => { // Changed from exports.verifyEsewaPayment
     try {

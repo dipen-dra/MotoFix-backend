@@ -1,6 +1,7 @@
 // routes/admin/bookingRoute.js
 
 const express = require('express');
+
 const {
     getAllBookings,
     getBookingById,
@@ -9,21 +10,18 @@ const {
     generateBookingInvoice 
 } = require('../../controllers/admin/bookingController.js');
 
-const { authenticateUser, isWorkshopAdmin } = require('../../middlewares/authorizedUser.js'); // Use isWorkshopAdmin
+const { authenticateUser, isWorkshopAdmin } = require('../../middlewares/authorizedUser.js');
 
 const router = express.Router();
 
-// Apply authentication middleware and workshop admin check to all routes in this file
 router.use(authenticateUser, isWorkshopAdmin);
 
-// Matches /api/admin/bookings/
 router.route('/')
     .get(getAllBookings);
 
 router.route('/:id/invoice')
     .get(generateBookingInvoice);
 
-// Matches /api/admin/bookings/:id
 router.route('/:id')
     .get(getBookingById)
     .put(updateBooking)
