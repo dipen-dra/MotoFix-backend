@@ -1,13 +1,13 @@
-import crypto from 'crypto';
-import fetch from 'node-fetch';
-import Booking from '../models/Booking.js';
-import User from '../models/User.js';
-import sendEmail from '../utils/sendEmail.js';
+// controllers/esewaController.js
+const crypto = require('crypto');
+const fetch = require('node-fetch'); // Use require for node-fetch
+const Booking = require('../models/Booking'); // Use require for Mongoose models
+const User = require('../models/User');     // Use require for Mongoose models
+const sendEmail = require('../utils/sendEmail'); // Use require for utility functions
 
-// --- Icon URL for direct use in email HTML ---
 // --- Icon URLs for direct use in email HTML for better reliability ---
 const SUCCESS_ICON_URL = 'https://cdn.vectorstock.com/i/500p/20/36/3d-green-check-icon-tick-mark-symbol-vector-56142036.jpg'; // Green tick icon
-const CANCEL_ICON_URL = 'https://media.istockphoto.com/id/1132722548/vector/round-red-x-mark-line-icon-button-cross-symbol-on-white-background.jpg?s=612x612&w=0&k=20&c=QnHlhWesKpmbov2MFn2yAMg6oqDS8YXmC_iDsPK_BXQ=';  // Red cross icon
+const CANCEL_ICON_URL = 'https://media.istockphoto.com/id/1132722548/vector/round-red-x-mark-line-icon-button-cross-symbol-on-white-background.jpg?s=612x612&w=0&k=20&c=QnHlhWesKpmbov2MFn2yAMg6oqDS8YXmC_iDsPK_BXQ=';  // Red cross icon
 
 const ESEWA_URL = 'https://rc-epay.esewa.com.np/api/epay/main/v2/form';
 const ESEWA_SCD = 'EPAYTEST';
@@ -25,7 +25,7 @@ const awardLoyaltyPoints = async (userId) => {
     return 0;
 };
 
-export const initiateEsewaPayment = async (req, res) => {
+const initiateEsewaPayment = async (req, res) => {
     try {
         const { bookingId } = req.body;
         const booking = await Booking.findById(bookingId);
@@ -63,11 +63,11 @@ export const initiateEsewaPayment = async (req, res) => {
 };
 
 /**
- * @desc      Verify an eSewa payment and send confirmation email
- * @route     GET /api/payment/esewa/verify
- * @access    Private (Implicitly, via frontend ProtectedRoute)
+ * @desc        Verify an eSewa payment and send confirmation email
+ * @route       GET /api/payment/esewa/verify
+ * @access      Private (Implicitly, via frontend ProtectedRoute)
  */
-export const verifyEsewaPayment = async (req, res) => {
+const verifyEsewaPayment = async (req, res) => {
     try {
         const { data } = req.query;
         if (!data) {
@@ -140,4 +140,9 @@ export const verifyEsewaPayment = async (req, res) => {
             res.status(500).json({ success: false, message: 'Server error during verification.' });
         }
     }
+};
+
+module.exports = {
+    initiateEsewaPayment,
+    verifyEsewaPayment
 };

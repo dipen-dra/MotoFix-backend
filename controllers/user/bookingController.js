@@ -1,19 +1,19 @@
-// controllers/user/bookingController.js (Updated with pickup/dropoff fields in create and update)
 /**
  * @file controllers/user/bookingController.js
  * @description Controller for user-facing booking operations.
  */
 
-import Booking from '../../models/Booking.js';
-import Service from '../../models/Service.js';
-import User from '../../models/User.js';
-import Workshop from '../../models/Workshop.js'; // Import Workshop model
-import axios from 'axios';
-import sendEmail from '../../utils/sendEmail.js';
+const Booking = require('../../models/Booking');
+const Service = require('../../models/Service');
+const User = require('../../models/User');
+const Workshop = require('../../models/Workshop'); // Import Workshop model
+const axios = require('axios');
+const sendEmail = require('../../utils/sendEmail');
+
 
 // --- Icon URLs for direct use in email HTML for better reliability ---
 const SUCCESS_ICON_URL = 'https://cdn.vectorstock.com/i/500p/20/36/3d-green-check-icon-tick-mark-symbol-vector-56142036.jpg'; // Green tick icon
-const CANCEL_ICON_URL = 'https://media.istockphoto.com/id/1132722548/vector/round-red-x-mark-line-icon-button-cross-symbol-on-white-background.jpg?s=612x612&w=0&k=20&c=QnHlhWesKpmbov2MFn2yAMg6oqDS8YXmC_iDsPK_BXQ=';  // Red cross icon
+const CANCEL_ICON_URL = 'https://media.istockphoto.com/id/1132722548/vector/round-red-x-mark-line-icon-button-cross-symbol-on-white-background.jpg?s=612x612&w=0&k=20&c=QnHlhWesKpmbov2MFn2yAMg6oqDS8YXmC_iDsPK_BXQ=';  // Red cross icon
 
 // Helper function to award loyalty points
 const awardLoyaltyPoints = async (userId) => {
@@ -38,7 +38,7 @@ const calculateDistance = (coord1, coord2) => {
 
 
 // --- PAGINATED: For "My Bookings" page (This remains paginated) ---
-export const getUserBookings = async (req, res) => {
+const getUserBookings = async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 11;
@@ -65,7 +65,7 @@ export const getUserBookings = async (req, res) => {
 };
 
 // --- Gets a single booking for the edit page (Unchanged) ---
-export const getUserBookingById = async (req, res) => {
+const getUserBookingById = async (req, res) => {
     try {
         const booking = await Booking.findOne({ _id: req.params.id, customer: req.user.id });
         if (!booking) {
@@ -79,7 +79,7 @@ export const getUserBookingById = async (req, res) => {
 
 
 // --- Gets ALL pending bookings for the payment page (Unchanged) ---
-export const getPendingBookings = async (req, res) => {
+const getPendingBookings = async (req, res) => {
     try {
         const bookings = await Booking.find({ customer: req.user.id, paymentStatus: 'Pending', status: { $ne: 'Cancelled' } }).sort({ createdAt: -1 });
         res.json({ success: true, data: bookings });
@@ -90,7 +90,7 @@ export const getPendingBookings = async (req, res) => {
 };
 
 // --- MODIFICATION: Payment History is now NOT paginated ---
-export const getBookingHistory = async (req, res) => {
+const getBookingHistory = async (req, res) => {
     try {
         const query = { customer: req.user.id, paymentStatus: 'Paid' };
 
@@ -107,7 +107,7 @@ export const getBookingHistory = async (req, res) => {
     }
 };
 
-export const createBooking = async (req, res) => {
+const createBooking = async (req, res) => {
     const { 
         serviceId, 
         bikeModel, 
@@ -180,7 +180,7 @@ export const createBooking = async (req, res) => {
     }
 };
 
-export const updateUserBooking = async (req, res) => {
+const updateUserBooking = async (req, res) => {
     try {
         const { 
             serviceId, 
@@ -286,7 +286,7 @@ export const updateUserBooking = async (req, res) => {
     }
 };
 
-export const deleteUserBooking = async (req, res) => {
+const deleteUserBooking = async (req, res) => {
     try {
         const booking = await Booking.findById(req.params.id);
 
@@ -312,7 +312,7 @@ export const deleteUserBooking = async (req, res) => {
     }
 };
 
-export const confirmPayment = async (req, res) => {
+const confirmPayment = async (req, res) => {
     const { paymentMethod } = req.body;
     if (paymentMethod !== 'COD') return res.status(400).json({ success: false, message: 'This route is only for COD payments.' });
 
@@ -364,7 +364,7 @@ export const confirmPayment = async (req, res) => {
     }
 };
 
-export const verifyKhaltiPayment = async (req, res) => {
+const verifyKhaltiPayment = async (req, res) => {
     const { token, amount, booking_id } = req.body;
     if (!token || !amount || !booking_id) return res.status(400).json({ success: false, message: 'Missing payment verification details.' });
 
@@ -425,7 +425,7 @@ export const verifyKhaltiPayment = async (req, res) => {
     }
 };
 
-export const applyLoyaltyDiscount = async (req, res) => {
+const applyLoyaltyDiscount = async (req, res) => {
     try {
         const booking = await Booking.findById(req.params.id);
         const user = await User.findById(req.user.id);
@@ -461,4 +461,17 @@ export const applyLoyaltyDiscount = async (req, res) => {
         console.error('Error applying discount:', error);
         res.status(500).json({ success: false, message: 'Server Error' });
     }
+};
+
+module.exports = {
+    getUserBookings,
+    createBooking,
+    updateUserBooking,
+    deleteUserBooking,
+    confirmPayment,
+    verifyKhaltiPayment,
+    applyLoyaltyDiscount,
+    getUserBookingById,
+    getPendingBookings,
+    getBookingHistory
 };

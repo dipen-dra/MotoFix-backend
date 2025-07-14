@@ -4,12 +4,7 @@ const { getDashboardSummary } = require('../../controllers/user/dashboardControl
 const { authenticateUser } = require('../../middlewares/authorizedUser');
 const { getUnreadCount } = require('../../controllers/user/chatController');
 
-console.log('authenticateUser loaded:', typeof authenticateUser);
-console.log('getDashboardSummary loaded:', typeof getDashboardSummary);
-
 router.get('/dashboard-summary', authenticateUser, getDashboardSummary);
+router.get('/chat/unread-count', authenticateUser, getUnreadCount);
 
 module.exports = router;
-// This code sets up a route for fetching the user dashboard summary.
-// It uses the `authenticateUser` middleware to ensure the user is authenticated before accessing the dashboard
-router.get('/chat/unread-count', authenticateUser, getUnreadCount);

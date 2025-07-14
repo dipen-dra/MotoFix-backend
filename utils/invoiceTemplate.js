@@ -1,4 +1,4 @@
-export const getInvoiceHTML = (booking, workshop) => {
+const getInvoiceHTML = (booking, workshop) => {
     const serviceCost = booking.totalCost; // This is the base service cost from the backend
     const pickupDropoffCost = booking.requestedPickupDropoff ? (booking.pickupDropoffCost || 0) : 0;
     const subtotalBeforeDiscount = serviceCost + pickupDropoffCost; // Sum of service and P/D
@@ -144,3 +144,5 @@ export const getInvoiceHTML = (booking, workshop) => {
     </body>
     </html>`;
 };
+
+module.exports=getInvoiceHTML;

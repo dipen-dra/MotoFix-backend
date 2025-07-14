@@ -1,3 +1,4 @@
+// routes/user/bookingRoutes.js
 const express = require('express');
 const router = express.Router();
 
@@ -10,11 +11,12 @@ const {
     confirmPayment,
     verifyKhaltiPayment,
     applyLoyaltyDiscount,
-    getUserBookingById, // <-- NEW
-    getPendingBookings, // <-- NEW
-    getBookingHistory   // <-- NEW
-} = require('../../controllers/user/bookingController');
-const { authenticateUser } = require('../../middlewares/authorizedUser');
+    getUserBookingById, 
+    getPendingBookings, 
+    getBookingHistory 
+} = require('../../controllers/user/bookingController'); // Ensure this path is correct
+
+const { authenticateUser } = require('../../middlewares/authorizedUser'); // Ensure this path is correct
 
 // This is now the main paginated route for the "My Bookings" page
 router.route('/bookings')
@@ -27,7 +29,7 @@ router.route('/bookings/history').get(authenticateUser, getBookingHistory);
 
 // --- MODIFICATION: Added GET method for the "Edit Booking" page ---
 router.route('/bookings/:id')
-    .get(authenticateUser, getUserBookingById) // <-- ADD THIS LINE
+    .get(authenticateUser, getUserBookingById) 
     .put(authenticateUser, updateUserBooking)
     .delete(authenticateUser, deleteUserBooking);
 

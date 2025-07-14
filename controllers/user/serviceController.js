@@ -1,3 +1,4 @@
+// controllers/user/serviceController.js
 const Service = require("../../models/Service");
 
 /**
@@ -5,7 +6,7 @@ const Service = require("../../models/Service");
  * @route   GET /api/user/services
  * @access  Private
  */
-exports.getAvailableServices = async (req, res) => {
+const getAvailableServices = async (req, res) => {
     try {
         // This function remains the same as it doesn't need populated reviews.
         const services = await Service.find({}).sort({ createdAt: -1 });
@@ -24,7 +25,7 @@ exports.getAvailableServices = async (req, res) => {
  * @route   GET /api/user/services/:id
  * @access  Private
  */
-exports.getServiceById = async (req, res) => {
+const getServiceById = async (req, res) => {
     try {
         // --- THIS IS THE UPDATED PART ---
         // We find the service by its ID and then use .populate() to get more details.
@@ -46,4 +47,9 @@ exports.getServiceById = async (req, res) => {
     } catch (error) {
         res.status(500).json({ success: false, message: "Server error.", error: error.message });
     }
+};
+
+module.exports = {
+    getAvailableServices,
+    getServiceById
 };
