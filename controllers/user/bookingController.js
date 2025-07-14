@@ -1,3 +1,4 @@
+// controllers/user/bookingController.js (Updated with pickup/dropoff fields in create and update)
 /**
  * @file controllers/user/bookingController.js
  * @description Controller for user-facing booking operations.
@@ -6,6 +7,7 @@
 import Booking from '../../models/Booking.js';
 import Service from '../../models/Service.js';
 import User from '../../models/User.js';
+import Workshop from '../../models/Workshop.js'; // Import Workshop model
 import axios from 'axios';
 import sendEmail from '../../utils/sendEmail.js';
 
@@ -23,6 +25,15 @@ const awardLoyaltyPoints = async (userId) => {
         return pointsToAdd;
     }
     return 0;
+};
+
+// Helper function to calculate distance (dummy for now, can integrate a real geo-coding service)
+// This is a placeholder. In a real app, you'd use a map API (e.g., Google Maps API)
+// to get distance between coordinates. For now, it returns a random distance.
+const calculateDistance = (coord1, coord2) => {
+    // Implement actual distance calculation using lat/lng (e.g., Haversine formula)
+    // For demonstration, return a random distance in km
+    return parseFloat((Math.random() * (20 - 1) + 1).toFixed(2)); // Random distance between 1 and 20 km
 };
 
 
@@ -96,144 +107,171 @@ export const getBookingHistory = async (req, res) => {
     }
 };
 
-// export const createBooking = async (req, res) => {
-//     const { serviceId, bikeModel, date, notes } = req.body;
-
-//     if (!serviceId || !bikeModel || !date) {
-//         return res.status(400).json({ success: false, message: 'Please provide all required fields.' });
-//     }
-
-//     try {
-//         const user = await User.findById(req.user.id);
-//         const service = await Service.findById(serviceId);
-
-//         if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
-//         if (!service) return res.status(404).json({ success: false, message: 'Service not found.' });
-        
-//         const booking = new Booking({
-//             customer: user._id,
-//             customerName: user.fullName,
-//             serviceType: service.name,
-            
-//             // --- THIS IS THE FIX ---
-//             // We must save the ObjectId of the service to the booking
-//             service: serviceId,
-//             // ----------------------
-
-//             bikeModel,
-//             date,
-//             notes,
-//             totalCost: service.price,
-//             finalAmount: service.price, 
-//             status: 'Pending',
-//             paymentStatus: 'Pending',
-//             isPaid: false
-//         });
-
-//         await booking.save();
-//         res.status(201).json({ success: true, data: booking, message: "Booking created. Please complete payment." });
-//     } catch (error) {
-//         console.error(error);
-//         res.status(500).json({ success: false, message: 'Server Error' });
-//     }
-// };
-
-// export const updateUserBooking = async (req, res) => {
-//     try {
-//         const { serviceId, bikeModel, date, notes } = req.body;
-//         let booking = await Booking.findById(req.params.id);
-
-//         if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
-//         if (booking.customer.toString() !== req.user.id) return res.status(401).json({ success: false, message: 'User not authorized' });
-//         if (booking.status !== 'Pending' || booking.isPaid || booking.discountApplied) {
-//             return res.status(400).json({ success: false, message: `Cannot edit a booking that is already in progress, paid, or has a discount.` });
-//         }
-
-//         if (serviceId) {
-//             const service = await Service.findById(serviceId);
-//             if (!service) return res.status(404).json({ success: false, message: 'New service not found.' });
-//             booking.serviceType = service.name;
-//             booking.totalCost = service.price;
-//             booking.finalAmount = service.price;
-//             // --- FIX FOR EDIT ---
-//             booking.service = serviceId; 
-//         }
-
-//         booking.bikeModel = bikeModel || booking.bikeModel;
-//         booking.date = date || booking.date;
-//         booking.notes = notes !== undefined ? notes : booking.notes;
-
-//         await booking.save();
-//         res.json({ success: true, data: booking, message: 'Booking updated successfully' });
-//     } catch (error) {
-//         console.error('Error updating booking:', error);
-//         res.status(500).json({ success: false, message: 'Server error while updating booking.' });
-//     }
-// };
-
-
-
 export const createBooking = async (req, res) => {
-    const { serviceId, bikeModel, date, notes } = req.body;
+    const { 
+        serviceId, 
+        bikeModel, 
+        date, 
+        notes, 
+        requestedPickupDropoff, 
+        pickupAddress, 
+        dropoffAddress, 
+        pickupCoordinates, 
+        dropoffCoordinates 
+    } = req.body;
 
     if (!serviceId || !bikeModel || !date) {
-        return res.status(400).json({ success: false, message: 'Please provide all required fields.' });
+        return res.status(400).json({ success: false, message: 'Please provide all required fields (Service, Bike Model, Date).' });
     }
 
     try {
         const user = await User.findById(req.user.id);
         const service = await Service.findById(serviceId);
+        const workshop = await Workshop.findOne(); // Assuming single workshop profile
 
         if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
         if (!service) return res.status(404).json({ success: false, message: 'Service not found.' });
+        if (!workshop) return res.status(500).json({ success: false, message: 'Workshop profile not found. Cannot create booking.' });
+
+        let pickupDropoffDistance = 0;
+        let pickupDropoffCost = 0;
+        let finalAmount = service.price;
+
+        if (requestedPickupDropoff && workshop.offerPickupDropoff) {
+            if (!pickupAddress || !dropoffAddress || !pickupCoordinates || !dropoffCoordinates) {
+                return res.status(400).json({ success: false, message: 'Pickup/Dropoff details are incomplete.' });
+            }
+            // Calculate distance and cost
+            pickupDropoffDistance = calculateDistance(pickupCoordinates, dropoffCoordinates); // Implement real distance calculation
+            pickupDropoffCost = pickupDropoffDistance * workshop.pickupDropoffChargePerKm;
+            finalAmount += pickupDropoffCost;
+        } else if (requestedPickupDropoff && !workshop.offerPickupDropoff) {
+            return res.status(400).json({ success: false, message: 'Pickup and Dropoff service is not offered by the workshop.' });
+        }
         
         const booking = new Booking({
             customer: user._id,
             customerName: user.fullName,
             serviceType: service.name,
-            
-            // --- THIS IS THE FIX ---
-            // We must save the ObjectId of the service to the booking
             service: serviceId,
-            // ----------------------
-
             bikeModel,
             date,
             notes,
-            totalCost: service.price,
-            finalAmount: service.price, 
+            totalCost: service.price, // Base service cost
+            finalAmount: finalAmount, // Base cost + pickup/dropoff cost
             status: 'Pending',
             paymentStatus: 'Pending',
-            isPaid: false
+            isPaid: false,
+            // Pickup/Dropoff fields
+            requestedPickupDropoff: requestedPickupDropoff || false,
+            pickupAddress: requestedPickupDropoff ? pickupAddress : '',
+            dropoffAddress: requestedPickupDropoff ? dropoffAddress : '',
+            pickupCoordinates: requestedPickupDropoff ? pickupCoordinates : undefined,
+            dropoffCoordinates: requestedPickupDropoff ? dropoffCoordinates : undefined,
+            pickupDropoffDistance: requestedPickupDropoff ? pickupDropoffDistance : 0,
+            pickupDropoffCost: requestedPickupDropoff ? pickupDropoffCost : 0
         });
 
         await booking.save();
         res.status(201).json({ success: true, data: booking, message: "Booking created. Please complete payment." });
     } catch (error) {
-        console.error(error);
+        console.error("Error creating booking:", error);
         res.status(500).json({ success: false, message: 'Server Error' });
     }
 };
 
 export const updateUserBooking = async (req, res) => {
     try {
-        const { serviceId, bikeModel, date, notes } = req.body;
+        const { 
+            serviceId, 
+            bikeModel, 
+            date, 
+            notes, 
+            requestedPickupDropoff, 
+            pickupAddress, 
+            dropoffAddress,
+            pickupCoordinates,
+            dropoffCoordinates
+        } = req.body;
         let booking = await Booking.findById(req.params.id);
+        const workshop = await Workshop.findOne(); // Assuming single workshop profile
 
         if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
         if (booking.customer.toString() !== req.user.id) return res.status(401).json({ success: false, message: 'User not authorized' });
         if (booking.status !== 'Pending' || booking.isPaid || booking.discountApplied) {
             return res.status(400).json({ success: false, message: `Cannot edit a booking that is already in progress, paid, or has a discount.` });
         }
+        if (!workshop) return res.status(500).json({ success: false, message: 'Workshop profile not found. Cannot update booking.' });
 
-        if (serviceId) {
+
+        // Recalculate costs if service or pickup/dropoff changes
+        let newTotalCost = booking.totalCost; // This is the base service cost
+        let newPickupDropoffCost = 0;
+        let newPickupDropoffDistance = 0;
+
+        if (serviceId && booking.service.toString() !== serviceId) {
             const service = await Service.findById(serviceId);
             if (!service) return res.status(404).json({ success: false, message: 'New service not found.' });
             booking.serviceType = service.name;
-            booking.totalCost = service.price;
-            booking.finalAmount = service.price;
-            // --- FIX FOR EDIT ---
+            newTotalCost = service.price; // Update base service cost
             booking.service = serviceId; 
+        }
+
+        // Handle pickup/dropoff changes
+        if (requestedPickupDropoff !== undefined) {
+            booking.requestedPickupDropoff = requestedPickupDropoff;
+            if (requestedPickupDropoff && workshop.offerPickupDropoff) {
+                if (!pickupAddress || !dropoffAddress || !pickupCoordinates || !dropoffCoordinates) {
+                    return res.status(400).json({ success: false, message: 'Pickup/Dropoff details are incomplete for requested service.' });
+                }
+                newPickupDropoffDistance = calculateDistance(pickupCoordinates, dropoffCoordinates);
+                newPickupDropoffCost = newPickupDropoffDistance * workshop.pickupDropoffChargePerKm;
+                
+                booking.pickupAddress = pickupAddress;
+                booking.dropoffAddress = dropoffAddress;
+                booking.pickupCoordinates = pickupCoordinates;
+                booking.dropoffCoordinates = dropoffCoordinates;
+                booking.pickupDropoffDistance = newPickupDropoffDistance;
+
+            } else if (requestedPickupDropoff && !workshop.offerPickupDropoff) {
+                return res.status(400).json({ success: false, message: 'Pickup and Dropoff service is not offered by the workshop.' });
+            } else {
+                // If requestedPickupDropoff is false, clear all related fields
+                booking.pickupAddress = '';
+                booking.dropoffAddress = '';
+                booking.pickupCoordinates = undefined;
+                booking.dropoffCoordinates = undefined;
+                booking.pickupDropoffDistance = 0;
+                newPickupDropoffCost = 0;
+            }
+            booking.pickupDropoffCost = newPickupDropoffCost;
+        } else {
+             // If requestedPickupDropoff is not changed, but pickup/dropoff details are sent, update them
+             if (booking.requestedPickupDropoff && workshop.offerPickupDropoff) {
+                let recalculate = false;
+                if (pickupAddress && booking.pickupAddress !== pickupAddress) { booking.pickupAddress = pickupAddress; recalculate = true; }
+                if (dropoffAddress && booking.dropoffAddress !== dropoffAddress) { booking.dropoffAddress = dropoffAddress; recalculate = true; }
+                if (pickupCoordinates && (booking.pickupCoordinates.lat !== pickupCoordinates.lat || booking.pickupCoordinates.lng !== pickupCoordinates.lng)) { booking.pickupCoordinates = pickupCoordinates; recalculate = true; }
+                if (dropoffCoordinates && (booking.dropoffCoordinates.lat !== dropoffCoordinates.lat || booking.dropoffCoordinates.lng !== dropoffCoordinates.lng)) { booking.dropoffCoordinates = dropoffCoordinates; recalculate = true; }
+
+                if (recalculate) {
+                    newPickupDropoffDistance = calculateDistance(booking.pickupCoordinates, booking.dropoffCoordinates);
+                    newPickupDropoffCost = newPickupDropoffDistance * workshop.pickupDropoffChargePerKm;
+                    booking.pickupDropoffDistance = newPickupDropoffDistance;
+                    booking.pickupDropoffCost = newPickupDropoffCost;
+                }
+            }
+        }
+
+        // Update base cost
+        booking.totalCost = newTotalCost;
+
+        // Recalculate finalAmount based on new totalCost and pickupDropoffCost
+        let calculatedFinalAmount = newTotalCost + booking.pickupDropoffCost;
+        if (booking.discountApplied) {
+            booking.finalAmount = calculatedFinalAmount - (calculatedFinalAmount * 0.20);
+        } else {
+            booking.finalAmount = calculatedFinalAmount;
         }
 
         booking.bikeModel = bikeModel || booking.bikeModel;
@@ -402,8 +440,9 @@ export const applyLoyaltyDiscount = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Not enough loyalty points. You need at least 100.' });
         }
 
-        const discountValue = booking.totalCost * 0.20;
-        booking.finalAmount = booking.totalCost - discountValue;
+        // Calculate discount based on totalCost (base service cost + pickup/dropoff cost)
+        const discountValue = (booking.totalCost + booking.pickupDropoffCost) * 0.20;
+        booking.finalAmount = (booking.totalCost + booking.pickupDropoffCost) - discountValue;
         booking.discountApplied = true;
         booking.discountAmount = discountValue;
         

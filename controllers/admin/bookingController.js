@@ -1,4 +1,4 @@
-// controllers/admin/bookingController.js (Corrected)
+// controllers/admin/bookingController.js (Updated to display pickup/dropoff info)
 
 // --- CORRECTED: Use require for all imports ---
 const Booking = require('../../models/Booking.js');
@@ -23,7 +23,9 @@ exports.getAllBookings = async (req, res) => {
             matchQuery.$or = [
                 { 'customer.fullName': { $regex: search, $options: 'i' } },
                 { 'serviceType': { $regex: search, $options: 'i' } },
-                { 'bikeModel': { $regex: search, $options: 'i' } }
+                { 'bikeModel': { $regex: search, $options: 'i' } },
+                { 'pickupAddress': { $regex: search, $options: 'i' } }, // Search by pickup address
+                { 'dropoffAddress': { $regex: search, $options: 'i' } }  // Search by dropoff address
             ];
         }
 
@@ -54,6 +56,7 @@ exports.getAllBookings = async (req, res) => {
 
 exports.getBookingById = async (req, res) => {
     try {
+        // Populate customer details to display in booking management
         const booking = await Booking.findById(req.params.id).populate('customer', 'fullName email phone address');
         if (!booking) {
             return res.status(404).json({ success: false, message: 'Booking not found' });

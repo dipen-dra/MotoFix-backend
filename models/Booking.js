@@ -1,4 +1,4 @@
-// models/Booking.js (Corrected to CommonJS)
+// models/Booking.js (Updated with pickup/dropoff fields)
 
 // --- CHANGED: Use require instead of import ---
 const mongoose = require("mongoose");
@@ -38,6 +38,35 @@ const BookingSchema = new Schema(
         archivedByAdmin: {
             type: Boolean,
             default: false
+        },
+        // NEW FIELDS FOR PICKUP/DROPOFF
+        requestedPickupDropoff: {
+            type: Boolean,
+            default: false
+        },
+        pickupAddress: {
+            type: String,
+            default: ''
+        },
+        dropoffAddress: {
+            type: String,
+            default: ''
+        },
+        pickupCoordinates: {
+            lat: { type: Number },
+            lng: { type: Number }
+        },
+        dropoffCoordinates: {
+            lat: { type: Number },
+            lng: { type: Number }
+        },
+        pickupDropoffDistance: {
+            type: Number, // In kilometers
+            default: 0
+        },
+        pickupDropoffCost: {
+            type: Number,
+            default: 0
         }
     },
     { timestamps: true }
