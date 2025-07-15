@@ -17,9 +17,6 @@ router.get("/", authenticateUser, isAdmin, getServices);
 router.put("/:id", authenticateUser, isAdmin, upload, updateService);
 router.delete("/:id", authenticateUser, isAdmin, deleteService);
 
-// ===============================================
-// THIS IS THE NEW ROUTE YOU NEED TO ADD
-// ===============================================
 router.get("/:id/reviews", authenticateUser, isAdmin, getServiceWithReviews);
 
 

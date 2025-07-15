@@ -1,23 +1,21 @@
-import crypto from 'crypto';
-import fetch from 'node-fetch';
-import Booking from '../models/Booking.js';
-import User from '../models/User.js';
-import sendEmail from '../utils/sendEmail.js';
+// controllers/esewaController.js
+const crypto = require('crypto');
+const fetch = require('node-fetch');
+const Booking = require('../models/Booking');
+const User = require('../models/User');
+const sendEmail = require('../utils/sendEmail');
 
-// --- Icon URL for direct use in email HTML ---
-// --- Icon URLs for direct use in email HTML for better reliability ---
-const SUCCESS_ICON_URL = 'https://cdn.vectorstock.com/i/500p/20/36/3d-green-check-icon-tick-mark-symbol-vector-56142036.jpg'; // Green tick icon
-const CANCEL_ICON_URL = 'https://media.istockphoto.com/id/1132722548/vector/round-red-x-mark-line-icon-button-cross-symbol-on-white-background.jpg?s=612x612&w=0&k=20&c=QnHlhWesKpmbov2MFn2yAMg6oqDS8YXmC_iDsPK_BXQ=';  // Red cross icon
+const SUCCESS_ICON_URL = 'https://cdn.vectorstock.com/i/500p/20/36/3d-green-check-icon-tick-mark-symbol-vector-56142036.jpg';
+const CANCEL_ICON_URL = 'https://media.istockphoto.com/id/1132722548/vector/round-red-x-mark-line-icon-button-cross-symbol-on-white-background.jpg?s=612x612&w=0&k=20&c=QnHlhWesKpmbov2MFn2yAMg6oqDS8YXmC_iDsPK_BXQ=';
 
 const ESEWA_URL = 'https://rc-epay.esewa.com.np/api/epay/main/v2/form';
 const ESEWA_SCD = 'EPAYTEST';
 const ESEWA_SECRET = '8gBm/:&EnhH.1/q';
 
-// Helper function to award loyalty points
 const awardLoyaltyPoints = async (userId) => {
     const user = await User.findById(userId);
     if (user) {
-        const pointsToAdd = Math.floor(Math.random() * 11) + 10; // 10 to 20 points
+        const pointsToAdd = Math.floor(Math.random() * 11) + 10;
         user.loyaltyPoints = (user.loyaltyPoints || 0) + pointsToAdd;
         await user.save();
         return pointsToAdd;
@@ -25,7 +23,7 @@ const awardLoyaltyPoints = async (userId) => {
     return 0;
 };
 
-export const initiateEsewaPayment = async (req, res) => {
+const initiateEsewaPayment = async (req, res) => {
     try {
         const { bookingId } = req.body;
         const booking = await Booking.findById(bookingId);
@@ -62,12 +60,7 @@ export const initiateEsewaPayment = async (req, res) => {
     }
 };
 
-/**
- * @desc      Verify an eSewa payment and send confirmation email
- * @route     GET /api/payment/esewa/verify
- * @access    Private (Implicitly, via frontend ProtectedRoute)
- */
-export const verifyEsewaPayment = async (req, res) => {
+const verifyEsewaPayment = async (req, res) => {
     try {
         const { data } = req.query;
         if (!data) {
@@ -95,18 +88,16 @@ export const verifyEsewaPayment = async (req, res) => {
                 return res.status(200).json({ success: true, message: 'Payment was already verified.' });
             }
             
-            // Award loyalty points and get the amount awarded
             const points = await awardLoyaltyPoints(booking.customer._id);
 
             booking.paymentStatus = 'Paid';
             booking.paymentMethod = 'eSewa';
             booking.isPaid = true;
-            booking.pointsAwarded = points; // <-- MODIFICATION: Store the points awarded
+            booking.pointsAwarded = points;
             await booking.save();
 
             res.status(200).json({ success: true, message: `Payment successful! You earned ${points} loyalty points.` });
 
-            // --- SEND EMAIL NOTIFICATION IN THE BACKGROUND ---
             try {
                 const emailHtml = `
                     <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
@@ -140,4 +131,9 @@ export const verifyEsewaPayment = async (req, res) => {
             res.status(500).json({ success: false, message: 'Server error during verification.' });
         }
     }
+};
+
+module.exports = {
+    initiateEsewaPayment,
+    verifyEsewaPayment
 };

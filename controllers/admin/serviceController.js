@@ -2,7 +2,6 @@ const Service = require("../../models/Service");
 const fs = require('fs');
 const path = require('path');
 
-// Get all services with pagination (This function is already correct)
 exports.getServices = async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
@@ -26,7 +25,6 @@ exports.getServices = async (req, res) => {
     }
 };
 
-// CREATE a new service with an image and duration
 exports.createService = async (req, res) => {
     const { name, description, price, duration } = req.body;
 
@@ -56,7 +54,6 @@ exports.createService = async (req, res) => {
     }
 };
 
-// UPDATE a service, with optional new image and duration
 exports.updateService = async (req, res) => {
     try {
         const service = await Service.findById(req.params.id);
@@ -84,7 +81,6 @@ exports.updateService = async (req, res) => {
     }
 };
 
-// DELETE a service and its associated image (This function is already correct)
 exports.deleteService = async (req, res) => {
     try {
         const service = await Service.findById(req.params.id);
@@ -104,20 +100,12 @@ exports.deleteService = async (req, res) => {
     }
 };
 
-// ===============================================
-// THIS IS THE NEW FUNCTION YOU NEED TO ADD
-// ===============================================
-/**
- * @desc    Get a single service with all its reviews populated with user details.
- * @route   GET /api/admin/services/:id/reviews
- * @access  Private (Admin)
- */
 exports.getServiceWithReviews = async (req, res) => {
     try {
         const service = await Service.findById(req.params.id)
             .populate({
-                path: 'reviews.user', // Go into the reviews array, find the user field
-                select: 'fullName profilePicture' // And select these fields from the User model
+                path: 'reviews.user',
+                select: 'fullName profilePicture'
             });
 
         if (!service) {

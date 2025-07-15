@@ -1,13 +1,10 @@
-// controllers/admin/dashboardController.js (Corrected)
 
-// --- CORRECTED: Use require ---
 const Booking = require('../../models/Booking.js');
 const User = require('../../models/User.js');
 
-// --- CORRECTED: Use exports.functionName syntax ---
+
 exports.getAnalytics = async (req, res) => {
     try {
-        // --- NOTE: Removed a stray 'a' character that was in your provided code here ---
         const totalRevenue = await Booking.aggregate([
             { $match: { status: 'Completed', isPaid: true } },
             { $group: { _id: null, total: { $sum: "$finalAmount" } } }

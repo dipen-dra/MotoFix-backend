@@ -3,21 +3,20 @@
  * @description Controller for user-facing booking operations.
  */
 
-import Booking from '../../models/Booking.js';
-import Service from '../../models/Service.js';
-import User from '../../models/User.js';
-import axios from 'axios';
-import sendEmail from '../../utils/sendEmail.js';
+const Booking = require('../../models/Booking');
+const Service = require('../../models/Service');
+const User = require('../../models/User');
+const Workshop = require('../../models/Workshop');
+const axios = require('axios');
+const sendEmail = require('../../utils/sendEmail');
 
-// --- Icon URLs for direct use in email HTML for better reliability ---
-const SUCCESS_ICON_URL = 'https://cdn.vectorstock.com/i/500p/20/36/3d-green-check-icon-tick-mark-symbol-vector-56142036.jpg'; // Green tick icon
-const CANCEL_ICON_URL = 'https://media.istockphoto.com/id/1132722548/vector/round-red-x-mark-line-icon-button-cross-symbol-on-white-background.jpg?s=612x612&w=0&k=20&c=QnHlhWesKpmbov2MFn2yAMg6oqDS8YXmC_iDsPK_BXQ=';  // Red cross icon
+const SUCCESS_ICON_URL = 'https://cdn.vectorstock.com/i/500p/20/36/3d-green-check-icon-tick-mark-symbol-vector-56142036.jpg';
+const CANCEL_ICON_URL = 'https://media.istockphoto.com/id/1132722548/vector/round-red-x-mark-line-icon-button-cross-symbol-on-white-background.jpg?s=612x612&w=0&k=20&c=QnHlhWesKpmbov2MFn2yAMg6oqDS8YXnMC_iDsPK_BXQ=';
 
-// Helper function to award loyalty points
 const awardLoyaltyPoints = async (userId) => {
     const user = await User.findById(userId);
     if (user) {
-        const pointsToAdd = Math.floor(Math.random() * 11) + 10; // 10 to 20 points
+        const pointsToAdd = Math.floor(Math.random() * 11) + 10;
         user.loyaltyPoints = (user.loyaltyPoints || 0) + pointsToAdd;
         await user.save();
         return pointsToAdd;
@@ -25,9 +24,11 @@ const awardLoyaltyPoints = async (userId) => {
     return 0;
 };
 
+const calculateDistance = (coord1, coord2) => {
+    return parseFloat((Math.random() * (20 - 1) + 1).toFixed(2));
+};
 
-// --- PAGINATED: For "My Bookings" page (This remains paginated) ---
-export const getUserBookings = async (req, res) => {
+const getUserBookings = async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 11;
@@ -53,8 +54,7 @@ export const getUserBookings = async (req, res) => {
     }
 };
 
-// --- Gets a single booking for the edit page (Unchanged) ---
-export const getUserBookingById = async (req, res) => {
+const getUserBookingById = async (req, res) => {
     try {
         const booking = await Booking.findOne({ _id: req.params.id, customer: req.user.id });
         if (!booking) {
@@ -66,9 +66,7 @@ export const getUserBookingById = async (req, res) => {
     }
 };
 
-
-// --- Gets ALL pending bookings for the payment page (Unchanged) ---
-export const getPendingBookings = async (req, res) => {
+const getPendingBookings = async (req, res) => {
     try {
         const bookings = await Booking.find({ customer: req.user.id, paymentStatus: 'Pending', status: { $ne: 'Cancelled' } }).sort({ createdAt: -1 });
         res.json({ success: true, data: bookings });
@@ -78,12 +76,10 @@ export const getPendingBookings = async (req, res) => {
     }
 };
 
-// --- MODIFICATION: Payment History is now NOT paginated ---
-export const getBookingHistory = async (req, res) => {
+const getBookingHistory = async (req, res) => {
     try {
         const query = { customer: req.user.id, paymentStatus: 'Paid' };
 
-        // Fetch all paid bookings without pagination (no limit, no skip)
         const bookings = await Booking.find(query).sort({ createdAt: -1 });
             
         res.json({
@@ -96,144 +92,162 @@ export const getBookingHistory = async (req, res) => {
     }
 };
 
-// export const createBooking = async (req, res) => {
-//     const { serviceId, bikeModel, date, notes } = req.body;
-
-//     if (!serviceId || !bikeModel || !date) {
-//         return res.status(400).json({ success: false, message: 'Please provide all required fields.' });
-//     }
-
-//     try {
-//         const user = await User.findById(req.user.id);
-//         const service = await Service.findById(serviceId);
-
-//         if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
-//         if (!service) return res.status(404).json({ success: false, message: 'Service not found.' });
-        
-//         const booking = new Booking({
-//             customer: user._id,
-//             customerName: user.fullName,
-//             serviceType: service.name,
-            
-//             // --- THIS IS THE FIX ---
-//             // We must save the ObjectId of the service to the booking
-//             service: serviceId,
-//             // ----------------------
-
-//             bikeModel,
-//             date,
-//             notes,
-//             totalCost: service.price,
-//             finalAmount: service.price, 
-//             status: 'Pending',
-//             paymentStatus: 'Pending',
-//             isPaid: false
-//         });
-
-//         await booking.save();
-//         res.status(201).json({ success: true, data: booking, message: "Booking created. Please complete payment." });
-//     } catch (error) {
-//         console.error(error);
-//         res.status(500).json({ success: false, message: 'Server Error' });
-//     }
-// };
-
-// export const updateUserBooking = async (req, res) => {
-//     try {
-//         const { serviceId, bikeModel, date, notes } = req.body;
-//         let booking = await Booking.findById(req.params.id);
-
-//         if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
-//         if (booking.customer.toString() !== req.user.id) return res.status(401).json({ success: false, message: 'User not authorized' });
-//         if (booking.status !== 'Pending' || booking.isPaid || booking.discountApplied) {
-//             return res.status(400).json({ success: false, message: `Cannot edit a booking that is already in progress, paid, or has a discount.` });
-//         }
-
-//         if (serviceId) {
-//             const service = await Service.findById(serviceId);
-//             if (!service) return res.status(404).json({ success: false, message: 'New service not found.' });
-//             booking.serviceType = service.name;
-//             booking.totalCost = service.price;
-//             booking.finalAmount = service.price;
-//             // --- FIX FOR EDIT ---
-//             booking.service = serviceId; 
-//         }
-
-//         booking.bikeModel = bikeModel || booking.bikeModel;
-//         booking.date = date || booking.date;
-//         booking.notes = notes !== undefined ? notes : booking.notes;
-
-//         await booking.save();
-//         res.json({ success: true, data: booking, message: 'Booking updated successfully' });
-//     } catch (error) {
-//         console.error('Error updating booking:', error);
-//         res.status(500).json({ success: false, message: 'Server error while updating booking.' });
-//     }
-// };
-
-
-
-export const createBooking = async (req, res) => {
-    const { serviceId, bikeModel, date, notes } = req.body;
+const createBooking = async (req, res) => {
+    const { 
+        serviceId, 
+        bikeModel, 
+        date, 
+        notes, 
+        requestedPickupDropoff, 
+        pickupAddress, 
+        dropoffAddress, 
+        pickupCoordinates, 
+        dropoffCoordinates 
+    } = req.body;
 
     if (!serviceId || !bikeModel || !date) {
-        return res.status(400).json({ success: false, message: 'Please provide all required fields.' });
+        return res.status(400).json({ success: false, message: 'Please provide all required fields (Service, Bike Model, Date).' });
     }
 
     try {
         const user = await User.findById(req.user.id);
         const service = await Service.findById(serviceId);
+        const workshop = await Workshop.findOne();
 
         if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
         if (!service) return res.status(404).json({ success: false, message: 'Service not found.' });
+        if (!workshop) return res.status(500).json({ success: false, message: 'Workshop profile not found. Cannot create booking.' });
+
+        let pickupDropoffDistance = 0;
+        let pickupDropoffCost = 0;
+        let finalAmount = service.price;
+
+        if (requestedPickupDropoff && workshop.offerPickupDropoff) {
+            if (!pickupAddress || !dropoffAddress || !pickupCoordinates || !dropoffCoordinates) {
+                return res.status(400).json({ success: false, message: 'Pickup/Dropoff details are incomplete.' });
+            }
+            pickupDropoffDistance = calculateDistance(pickupCoordinates, dropoffCoordinates);
+            pickupDropoffCost = pickupDropoffDistance * workshop.pickupDropoffChargePerKm;
+            finalAmount += pickupDropoffCost;
+        } else if (requestedPickupDropoff && !workshop.offerPickupDropoff) {
+            return res.status(400).json({ success: false, message: 'Pickup and Dropoff service is not offered by the workshop.' });
+        }
         
         const booking = new Booking({
             customer: user._id,
             customerName: user.fullName,
             serviceType: service.name,
-            
-            // --- THIS IS THE FIX ---
-            // We must save the ObjectId of the service to the booking
             service: serviceId,
-            // ----------------------
-
             bikeModel,
             date,
             notes,
             totalCost: service.price,
-            finalAmount: service.price, 
+            finalAmount: finalAmount,
             status: 'Pending',
             paymentStatus: 'Pending',
-            isPaid: false
+            isPaid: false,
+            requestedPickupDropoff: requestedPickupDropoff || false,
+            pickupAddress: requestedPickupDropoff ? pickupAddress : '',
+            dropoffAddress: requestedPickupDropoff ? dropoffAddress : '',
+            pickupCoordinates: requestedPickupDropoff ? pickupCoordinates : undefined,
+            dropoffCoordinates: requestedPickupDropoff ? dropoffCoordinates : undefined,
+            pickupDropoffDistance: requestedPickupDropoff ? pickupDropoffDistance : 0,
+            pickupDropoffCost: requestedPickupDropoff ? pickupDropoffCost : 0
         });
 
         await booking.save();
         res.status(201).json({ success: true, data: booking, message: "Booking created. Please complete payment." });
     } catch (error) {
-        console.error(error);
+        console.error("Error creating booking:", error);
         res.status(500).json({ success: false, message: 'Server Error' });
     }
 };
 
-export const updateUserBooking = async (req, res) => {
+const updateUserBooking = async (req, res) => {
     try {
-        const { serviceId, bikeModel, date, notes } = req.body;
+        const { 
+            serviceId, 
+            bikeModel, 
+            date, 
+            notes, 
+            requestedPickupDropoff, 
+            pickupAddress, 
+            dropoffAddress,
+            pickupCoordinates,
+            dropoffCoordinates
+        } = req.body;
         let booking = await Booking.findById(req.params.id);
+        const workshop = await Workshop.findOne();
 
         if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
         if (booking.customer.toString() !== req.user.id) return res.status(401).json({ success: false, message: 'User not authorized' });
         if (booking.status !== 'Pending' || booking.isPaid || booking.discountApplied) {
             return res.status(400).json({ success: false, message: `Cannot edit a booking that is already in progress, paid, or has a discount.` });
         }
+        if (!workshop) return res.status(500).json({ success: false, message: 'Workshop profile not found. Cannot update booking.' });
 
-        if (serviceId) {
+        let newTotalCost = booking.totalCost;
+        let newPickupDropoffCost = 0;
+        let newPickupDropoffDistance = 0;
+
+        if (serviceId && booking.service.toString() !== serviceId) {
             const service = await Service.findById(serviceId);
             if (!service) return res.status(404).json({ success: false, message: 'New service not found.' });
             booking.serviceType = service.name;
-            booking.totalCost = service.price;
-            booking.finalAmount = service.price;
-            // --- FIX FOR EDIT ---
+            newTotalCost = service.price;
             booking.service = serviceId; 
+        }
+
+        if (requestedPickupDropoff !== undefined) {
+            booking.requestedPickupDropoff = requestedPickupDropoff;
+            if (requestedPickupDropoff && workshop.offerPickupDropoff) {
+                if (!pickupAddress || !dropoffAddress || !pickupCoordinates || !dropoffCoordinates) {
+                    return res.status(400).json({ success: false, message: 'Pickup/Dropoff details are incomplete for requested service.' });
+                }
+                newPickupDropoffDistance = calculateDistance(pickupCoordinates, dropoffCoordinates);
+                newPickupDropoffCost = newPickupDropoffDistance * workshop.pickupDropoffChargePerKm;
+                
+                booking.pickupAddress = pickupAddress;
+                booking.dropoffAddress = dropoffAddress;
+                booking.pickupCoordinates = pickupCoordinates;
+                booking.dropoffCoordinates = dropoffCoordinates;
+                booking.pickupDropoffDistance = newPickupDropoffDistance;
+
+            } else if (requestedPickupDropoff && !workshop.offerPickupDropoff) {
+                return res.status(400).json({ success: false, message: 'Pickup and Dropoff service is not offered by the workshop.' });
+            } else {
+                booking.pickupAddress = '';
+                booking.dropoffAddress = '';
+                booking.pickupCoordinates = undefined;
+                booking.dropoffCoordinates = undefined;
+                booking.pickupDropoffDistance = 0;
+                newPickupDropoffCost = 0;
+            }
+            booking.pickupDropoffCost = newPickupDropoffCost;
+        } else {
+             if (booking.requestedPickupDropoff && workshop.offerPickupDropoff) {
+                let recalculate = false;
+                if (pickupAddress && booking.pickupAddress !== pickupAddress) { booking.pickupAddress = pickupAddress; recalculate = true; }
+                if (dropoffAddress && booking.dropoffAddress !== dropoffAddress) { booking.dropoffAddress = dropoffAddress; recalculate = true; }
+                if (pickupCoordinates && (booking.pickupCoordinates.lat !== pickupCoordinates.lat || booking.pickupCoordinates.lng !== pickupCoordinates.lng)) { booking.pickupCoordinates = pickupCoordinates; recalculate = true; }
+                if (dropoffCoordinates && (booking.dropoffCoordinates.lat !== dropoffCoordinates.lat || booking.dropoffCoordinates.lng !== dropoffCoordinates.lng)) { booking.dropoffCoordinates = dropoffCoordinates; recalculate = true; }
+
+                if (recalculate) {
+                    newPickupDropoffDistance = calculateDistance(booking.pickupCoordinates, booking.dropoffCoordinates);
+                    newPickupDropoffCost = newPickupDropoffDistance * workshop.pickupDropoffChargePerKm;
+                    booking.pickupDropoffDistance = newPickupDropoffDistance;
+                    booking.pickupDropoffCost = newPickupDropoffCost;
+                }
+            }
+        }
+
+        booking.totalCost = newTotalCost;
+
+        let calculatedFinalAmount = newTotalCost + booking.pickupDropoffCost;
+        if (booking.discountApplied) {
+            booking.finalAmount = calculatedFinalAmount - (calculatedFinalAmount * 0.20);
+        } else {
+            booking.finalAmount = calculatedFinalAmount;
         }
 
         booking.bikeModel = bikeModel || booking.bikeModel;
@@ -248,7 +262,7 @@ export const updateUserBooking = async (req, res) => {
     }
 };
 
-export const deleteUserBooking = async (req, res) => {
+const deleteUserBooking = async (req, res) => {
     try {
         const booking = await Booking.findById(req.params.id);
 
@@ -259,7 +273,7 @@ export const deleteUserBooking = async (req, res) => {
         if (booking.discountApplied) {
             const user = await User.findById(req.user.id);
             if (user) {
-                user.loyaltyPoints += 100; // Refund the 100 points
+                user.loyaltyPoints += 100;
                 await user.save();
             }
         }
@@ -274,7 +288,7 @@ export const deleteUserBooking = async (req, res) => {
     }
 };
 
-export const confirmPayment = async (req, res) => {
+const confirmPayment = async (req, res) => {
     const { paymentMethod } = req.body;
     if (paymentMethod !== 'COD') return res.status(400).json({ success: false, message: 'This route is only for COD payments.' });
 
@@ -326,7 +340,7 @@ export const confirmPayment = async (req, res) => {
     }
 };
 
-export const verifyKhaltiPayment = async (req, res) => {
+const verifyKhaltiPayment = async (req, res) => {
     const { token, amount, booking_id } = req.body;
     if (!token || !amount || !booking_id) return res.status(400).json({ success: false, message: 'Missing payment verification details.' });
 
@@ -387,7 +401,7 @@ export const verifyKhaltiPayment = async (req, res) => {
     }
 };
 
-export const applyLoyaltyDiscount = async (req, res) => {
+const applyLoyaltyDiscount = async (req, res) => {
     try {
         const booking = await Booking.findById(req.params.id);
         const user = await User.findById(req.user.id);
@@ -402,8 +416,8 @@ export const applyLoyaltyDiscount = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Not enough loyalty points. You need at least 100.' });
         }
 
-        const discountValue = booking.totalCost * 0.20;
-        booking.finalAmount = booking.totalCost - discountValue;
+        const discountValue = (booking.totalCost + booking.pickupDropoffCost) * 0.20;
+        booking.finalAmount = (booking.totalCost + booking.pickupDropoffCost) - discountValue;
         booking.discountApplied = true;
         booking.discountAmount = discountValue;
         
@@ -422,4 +436,17 @@ export const applyLoyaltyDiscount = async (req, res) => {
         console.error('Error applying discount:', error);
         res.status(500).json({ success: false, message: 'Server Error' });
     }
+};
+
+module.exports = {
+    getUserBookings,
+    createBooking,
+    updateUserBooking,
+    deleteUserBooking,
+    confirmPayment,
+    verifyKhaltiPayment,
+    applyLoyaltyDiscount,
+    getUserBookingById,
+    getPendingBookings,
+    getBookingHistory
 };

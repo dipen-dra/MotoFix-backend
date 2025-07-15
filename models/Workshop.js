@@ -1,3 +1,4 @@
+
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
@@ -24,6 +25,14 @@ const WorkshopSchema = new Schema(
         },
         profilePicture: {
             type: String
+        },
+        offerPickupDropoff: {
+            type: Boolean,
+            default: false
+        },
+        pickupDropoffChargePerKm: {
+            type: Number,
+            default: 0
         }
     },
     { timestamps: true }

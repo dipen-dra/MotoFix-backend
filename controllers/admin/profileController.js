@@ -1,19 +1,19 @@
 const Workshop = require('../../models/Workshop');
 const { single } = require('../../middlewares/fileupload');
 
-// Get workshop profile
+
 exports.getProfile = async (req, res) => {
     try {
-        // Assuming single workshop profile, find one
         const profile = await Workshop.findOne();
         if (!profile) {
-            // Create a default one if it doesn't exist
             const defaultProfile = new Workshop({
                 ownerName: 'Admin User',
                 workshopName: 'MotoFix Central',
                 email: 'admin@motofix.com',
                 phone: '9988776655',
-                address: '123, Main Street, Auto Nagar, Delhi, India'
+                address: '123, Main Street, Auto Nagar, Delhi, India',
+                offerPickupDropoff: false, // Default to false
+                pickupDropoffChargePerKm: 0 // Default to 0
             });
             await defaultProfile.save();
             return res.status(200).json({ success: true, data: defaultProfile });
@@ -24,7 +24,6 @@ exports.getProfile = async (req, res) => {
     }
 };
 
-// Update workshop profile
 exports.updateProfile = async (req, res) => {
     try {
         let profile = await Workshop.findOne();
@@ -33,6 +32,14 @@ exports.updateProfile = async (req, res) => {
         }
         
         const updateData = { ...req.body };
+
+        if (updateData.offerPickupDropoff !== undefined) {
+            updateData.offerPickupDropoff = updateData.offerPickupDropoff === 'true'; // Convert string to boolean if from form
+        }
+        if (updateData.pickupDropoffChargePerKm !== undefined) {
+            updateData.pickupDropoffChargePerKm = parseFloat(updateData.pickupDropoffChargePerKm);
+        }
+
         if (req.file) {
             updateData.profilePicture = req.file.path;
         }
@@ -45,5 +52,4 @@ exports.updateProfile = async (req, res) => {
     }
 };
 
-// Middleware for single file upload
 exports.uploadProfilePicture = single('profilePicture');

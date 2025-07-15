@@ -3,7 +3,6 @@ const Booking = require("../models/Booking");
 const User = require("../models/User");
 const Workshop = require("../models/Workshop");
 
-// For guest users - gets all services
 exports.getServiceInfo = async (req, res) => {
     try {
         const services = await Service.find().select('name description price duration');
@@ -13,17 +12,16 @@ exports.getServiceInfo = async (req, res) => {
     }
 };
 
-// For Admin - gets dashboard stats (UPDATED to include totalBookings)
 exports.getAdminDashboardInfo = async (req, res) => {
     try {
         const [revenueResult, totalBookings, pendingBookings, inProgressBookings] = await Promise.all([
-             Booking.aggregate([
+            Booking.aggregate([
                 { $match: { status: 'Completed' } },
                 { $group: { _id: null, total: { $sum: "$totalCost" } } }
             ]),
-             Booking.countDocuments(), // Total bookings in the system
-             Booking.countDocuments({ status: 'Pending' }),
-             Booking.countDocuments({ status: 'In Progress' }),
+            Booking.countDocuments(),
+            Booking.countDocuments({ status: 'Pending' }),
+            Booking.countDocuments({ status: 'In Progress' }),
         ]);
 
         res.status(200).json({
@@ -40,7 +38,6 @@ exports.getAdminDashboardInfo = async (req, res) => {
     }
 };
 
-// For User - gets their specific dashboard stats (UPDATED for clarity)
 exports.getUserDashboardInfo = async (req, res) => {
     try {
         const userId = req.user.id;
@@ -70,7 +67,6 @@ exports.getUserDashboardInfo = async (req, res) => {
     }
 };
 
-// Get Profile Info for Chatbot
 exports.getProfileInfo = async (req, res) => {
     try {
         const userId = req.user.id;
@@ -107,14 +103,13 @@ exports.getProfileInfo = async (req, res) => {
         } else { 
             const user = await User.findById(userId).select('fullName email phone address');
             if (!user) {
-                 return res.status(404).json({ success: false, message: "User profile not found." });
+                return res.status(404).json({ success: false, message: "User profile not found." });
             }
             res.status(200).json({ success: true, data: user });
         }
 
     } catch (error) {
-         console.error("Chatbot Profile Fetch Error:", error);
-         res.status(500).json({ success: false, message: "Server error while fetching profile info.", error: error.message });
+        console.error("Chatbot Profile Fetch Error:", error);
+        res.status(500).json({ success: false, message: "Server error while fetching profile info.", error: error.message });
     }
 };
-//issue solved 

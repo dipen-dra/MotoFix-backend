@@ -1,4 +1,3 @@
-
 const User = require("../models/User");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
@@ -80,7 +79,7 @@ exports.loginUser = async (req, res) => {
         }
 
         const payload = {
-            _id: user._id, // Standard practice to use 'id'
+            _id: user._id,
             email: user.email,
             fullName: user.fullName,
             role: user.role,
@@ -128,8 +127,6 @@ exports.sendResetLink = async (req, res) => {
     try {
         const user = await User.findOne({ email });
         if (!user) {
-            // To prevent email enumeration, we send a success response even if the user is not found.
-            // The message on the frontend will inform them to check their email if an account exists.
             return res.status(200).json({
                 success: true,
                 message: "If an account with that email exists, a reset link has been sent.",
@@ -139,10 +136,9 @@ exports.sendResetLink = async (req, res) => {
         const token = jwt.sign(
             { id: user._id },
             process.env.SECRET,
-            { expiresIn: "15m" } // The link will be valid for 15 minutes
+            { expiresIn: "15m" }
         );
 
-        // NOTE: You will need to create the reset password page on your frontend.
         const resetUrl = `${process.env.CLIENT_URL}/reset-password/${token}`;
 
         const mailOptions = {
@@ -183,9 +179,7 @@ exports.sendResetLink = async (req, res) => {
 };
 
 exports.resetPassword = async (req, res) => {
-    // Get the token from the URL parameters
     const { token } = req.params;
-    // Get the new password from the request body
     const { password } = req.body;
 
     if (!password) {
@@ -193,17 +187,12 @@ exports.resetPassword = async (req, res) => {
     }
 
     try {
-        // 1. Verify the token is valid and not expired
-        // This will throw an error if the token is invalid or expired
         const decoded = jwt.verify(token, process.env.SECRET);
 
-        // The decoded payload contains the user's ID
         const userId = decoded.id;
 
-        // 2. Hash the new password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // 3. Find the user by their ID and update their password
         await User.findByIdAndUpdate(userId, { password: hashedPassword });
 
         return res.status(200).json({
@@ -212,7 +201,6 @@ exports.resetPassword = async (req, res) => {
         });
 
     } catch (err) {
-        // Handle different kinds of errors
         if (err.name === 'JsonWebTokenError') {
             return res.status(401).json({ success: false, message: "Invalid token." });
         }

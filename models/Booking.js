@@ -1,6 +1,3 @@
-// models/Booking.js (Corrected to CommonJS)
-
-// --- CHANGED: Use require instead of import ---
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
@@ -38,10 +35,37 @@ const BookingSchema = new Schema(
         archivedByAdmin: {
             type: Boolean,
             default: false
+        },
+        requestedPickupDropoff: {
+            type: Boolean,
+            default: false
+        },
+        pickupAddress: {
+            type: String,
+            default: ''
+        },
+        dropoffAddress: {
+            type: String,
+            default: ''
+        },
+        pickupCoordinates: {
+            lat: { type: Number },
+            lng: { type: Number }
+        },
+        dropoffCoordinates: {
+            lat: { type: Number },
+            lng: { type: Number }
+        },
+        pickupDropoffDistance: {
+            type: Number,
+            default: 0
+        },
+        pickupDropoffCost: {
+            type: Number,
+            default: 0
         }
     },
     { timestamps: true }
 );
 
-// --- CHANGED: Use module.exports instead of export default ---
 module.exports = mongoose.model("Booking", BookingSchema);
