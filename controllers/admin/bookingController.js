@@ -1,6 +1,3 @@
-// controllers/admin/bookingController.js (Updated to display pickup/dropoff info)
-
-// --- CORRECTED: Use require for all imports ---
 const Booking = require('../../models/Booking.js');
 const User = require('../../models/User.js');
 const sendEmail = require('../../utils/sendEmail.js');
@@ -10,7 +7,6 @@ const { getInvoiceHTML } = require('../../utils/invoiceTemplate.js');
 const SUCCESS_ICON_URL = 'https://cdn.vectorstock.com/i/500p/20/36/3d-green-check-icon-tick-mark-symbol-vector-56142036.jpg';
 const CANCEL_ICON_URL = 'https://media.istockphoto.com/id/1132722548/vector/round-red-x-mark-line-icon-button-cross-symbol-on-white-background.jpg?s=612x612&w=0&k=20&c=QnHlhWesKpmbov2MFn2yAMg6oqDS8YXmC_iDsPK_BXQ=';
 
-// --- CORRECTED: Use exports.functionName syntax ---
 exports.getAllBookings = async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
@@ -56,7 +52,6 @@ exports.getAllBookings = async (req, res) => {
 
 exports.getBookingById = async (req, res) => {
     try {
-        // Populate customer details to display in booking management
         const booking = await Booking.findById(req.params.id).populate('customer', 'fullName email phone address');
         if (!booking) {
             return res.status(404).json({ success: false, message: 'Booking not found' });
@@ -69,7 +64,6 @@ exports.getBookingById = async (req, res) => {
 };
 
 exports.updateBooking = async (req, res) => {
-    // This function logic is correct and does not need changes
     try {
         const { status, totalCost } = req.body;
         const booking = await Booking.findById(req.params.id).populate('customer', 'fullName email');
@@ -134,7 +128,6 @@ exports.updateBooking = async (req, res) => {
 };
 
 exports.deleteBooking = async (req, res) => {
-    // This function logic is correct and does not need changes
     try {
         const booking = await Booking.findById(req.params.id).populate('customer', 'fullName email loyaltyPoints');
         if (!booking) {
@@ -195,7 +188,6 @@ exports.deleteBooking = async (req, res) => {
     }
 };
 
-// --- NEW FUNCTION, with corrected `exports` syntax ---
 exports.generateBookingInvoice = async (req, res) => {
     try {
         const booking = await Booking.findById(req.params.id)

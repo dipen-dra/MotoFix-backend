@@ -1,16 +1,12 @@
-// test/adminBooking.test.js
-
 const request = require('supertest');
 const { app, server, io } = require('../index');
 const mongoose = require('mongoose');
 
-// Models
 const User = require('../models/User');
 const Service = require('../models/Service');
 const Booking = require('../models/Booking');
 const Workshop = require('../models/Workshop');
 
-// --- Mocking External Dependencies ---
 jest.mock('../utils/sendEmail');
 const sendEmail = require('../utils/sendEmail');
 sendEmail.mockImplementation(() => Promise.resolve());
@@ -33,7 +29,6 @@ const mockIo = {
     close: jest.fn(),
 };
 
-// Test-specific variables
 let adminToken;
 let adminUserId;
 let normalToken;
@@ -130,38 +125,38 @@ beforeAll(async () => {
     console.log('--- beforeAll (Admin Booking Tests): Test service created ---');
 
     const bookings = await Booking.create([
-        { // 0: Pending booking (for update, getById)
+        {
             customer: normalUserId, customerName: 'Normal User', service: testServiceId, serviceType: 'Admin Test Service',
             bikeModel: 'Honda CBR', date: new Date(Date.now() + 86400000), notes: 'Pending booking',
             totalCost: 500, finalAmount: 500, status: 'Pending', paymentStatus: 'Pending', isPaid: false,
         },
-        { // 1: In Progress booking (for update, delete (cancel))
+        {
             customer: normalUserId, customerName: 'Normal User', service: testServiceId, serviceType: 'Admin Test Service',
             bikeModel: 'Yamaha R1', date: new Date(Date.now() + 2 * 86400000), notes: 'In progress booking',
             totalCost: 500, finalAmount: 500, status: 'In Progress', paymentStatus: 'Pending', isPaid: false,
         },
-        { // 2: Completed and Paid booking (for history, invoice, and negative tests)
+        {
             customer: normalUserId, customerName: 'Normal User', service: testServiceId, serviceType: 'Admin Test Service',
             bikeModel: 'Kawasaki Ninja', date: new Date(Date.now() - 86400000), notes: 'Completed paid booking',
             totalCost: 500, finalAmount: 500, status: 'Completed', paymentStatus: 'Paid', isPaid: true,
         },
-        { // 3: Cancelled booking (already archived by admin)
+        {
             customer: normalUserId, customerName: 'Normal User', service: testServiceId, serviceType: 'Admin Test Service',
             bikeModel: 'Suzuki GSX', date: new Date(Date.now() - 2 * 86400000), notes: 'Cancelled booking',
             totalCost: 500, finalAmount: 500, status: 'Cancelled', paymentStatus: 'Pending', isPaid: false, archivedByAdmin: true,
         },
-        { // 4: Booking with awarded points (for reversal test)
+        {
             customer: normalUserId, customerName: 'Normal User', service: testServiceId, serviceType: 'Admin Test Service',
             bikeModel: 'Harley Davidson', date: new Date(Date.now() + 3 * 86400000), notes: 'Booking with awarded points',
             totalCost: 700, finalAmount: 700, status: 'Pending', paymentStatus: 'Paid', isPaid: true, pointsAwarded: 15,
         },
-        { // 5: Booking with discount applied (for refund test)
+        {
             customer: normalUserId, customerName: 'Normal User', service: testServiceId, serviceType: 'Admin Test Service',
             bikeModel: 'BMW S1000RR', date: new Date(Date.now() + 4 * 86400000), notes: 'Booking with discount',
             totalCost: 1000, finalAmount: 800, status: 'Pending', paymentStatus: 'Pending', isPaid: false, discountApplied: true, discountAmount: 200,
         },
-        { // 6: Specific paid booking for search/pagination
-            customer: normalUserId, customerName: 'Normal User', service: testServiceId, serviceType: 'Specific Search Service', // Corrected customerName
+        {
+            customer: normalUserId, customerName: 'Normal User', service: testServiceId, serviceType: 'Specific Search Service',
             bikeModel: 'Specific Search Bike', date: new Date(Date.now() + 1000),
             notes: 'For search test',
             totalCost: 600, finalAmount: 600, status: 'Completed', paymentStatus: 'Paid', isPaid: true,
@@ -215,12 +210,11 @@ describe('Admin Booking Management', () => {
         mockIo.emit.mockClear();
         puppeteer.launch.mockClear();
 
-        // Ensure admin user workshop details are set for each test that needs them
         await User.findByIdAndUpdate(adminUserId, {
             workshopName: 'Admin Test Workshop',
             address: 'Admin Workshop Address',
             phone: '9998887777'
-        }, { new: true }); // Adding {new: true} for robustness
+        }, { new: true });
     });
 
     describe('GET /api/admin/bookings', () => {
@@ -238,20 +232,18 @@ describe('Admin Booking Management', () => {
                 expect(booking.isPaid).toBe(true);
                 expect(booking.archivedByAdmin).not.toBe(true);
             });
-            // Total of 3 paid, non-archived bookings: bookings[2], bookings[4], bookings[6]
             expect(res.body.totalPages).toBe(Math.ceil(3 / 2));
         });
 
         it('should allow admin to search bookings by customer name, service type, bike model, pickup/dropoff address', async () => {
             const res = await request(server)
-                .get('/api/admin/bookings?search=Normal User') // Changed search term
+                .get('/api/admin/bookings?search=Normal User')
                 .set('Authorization', `Bearer ${adminToken}`);
 
             expect(res.statusCode).toBe(200);
             expect(res.body.success).toBe(true);
-            expect(res.body.data.length).toBe(3); // Changed expectation to 3
+            expect(res.body.data.length).toBe(3);
             expect(res.body.data[0].customer.fullName).toBe('Normal User');
-            // Further assertions can be added if needed, e.g., checking if bookingSearchId is in the array
             const foundBooking = res.body.data.find(b => b._id === bookingSearchId.toString());
             expect(foundBooking).toBeDefined();
             expect(foundBooking.bikeModel).toBe('Specific Search Bike');
@@ -346,10 +338,9 @@ describe('Admin Booking Management', () => {
             expect(res.body.data.totalCost).toBe(750);
             expect(res.body.data.finalAmount).toBe(750);
 
-            // Verify Socket.IO event emission - Corrected to match exact emitted object
             expect(mockIo.to).toHaveBeenCalledWith(`chat-${normalUserId.toString()}`);
             expect(mockIo.emit).toHaveBeenCalledWith('booking_status_update', {
-                bookingId: res.body.data._id.toString(), // Ensure this is a string
+                bookingId: res.body.data._id.toString(),
                 serviceType: 'Admin Test Service',
                 newStatus: 'Completed',
                 message: `Your booking for "Admin Test Service" is now Completed.`,
@@ -546,7 +537,6 @@ describe('Admin Booking Management', () => {
 
     describe('GET /api/admin/bookings/:id/invoice', () => {
         it('should generate a PDF invoice for a paid booking', async () => {
-            // Ensure the booking is indeed paid and not archived before this test runs
             await Booking.findByIdAndUpdate(bookingCompletedPaidId, { isPaid: true, archivedByAdmin: false });
 
             const res = await request(server)
@@ -608,7 +598,6 @@ describe('Admin Booking Management', () => {
         });
 
         it('should return 500 if admin user profile (workshop details) not found', async () => {
-            // Temporarily clear admin workshop details to simulate missing profile
             await User.findByIdAndUpdate(adminUserId, { workshopName: undefined, address: undefined, phone: undefined });
 
             const res = await request(server)

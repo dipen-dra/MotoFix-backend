@@ -1,15 +1,15 @@
-// ================== index.js ==================
+
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const http = require('http'); // Already importing http
+const http = require('http');
 const { Server } = require("socket.io");
 const connectDB = require('./config/db');
 const Message = require('./models/Message');
 
 const app = express();
-const server = http.createServer(app); // Server instance created here
+const server = http.createServer(app); 
 connectDB();
 
 const io = new Server(server, {
@@ -42,7 +42,6 @@ app.use('/api/payment/esewa', require('./routes/esewaRoute'));
 app.use('/api/gemini', require('./routes/gemini'));
 app.use('/api/reviews', require('./routes/reviewRoute'));
 
-// --- Socket.IO connection handling ---
 io.on('connection', (socket) => {
     socket.on('join_room', async (data) => {
         const { roomName, userId } = data;
@@ -93,7 +92,7 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {});
 });
 
-// --- Error Handling Middleware ---
+
 app.use((req, res, next) => {
     const error = new Error(`Not Found - ${req.originalUrl}`);
     res.status(404);
@@ -109,9 +108,9 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5050;
-const listenServer = server.listen(PORT, () => { // Store the result of server.listen()
+const listenServer = server.listen(PORT, () => { 
     console.log(`🚀 Server is running on port ${PORT}`);
 });
 
-// --- Export both the app and the server for testing ---
-module.exports = { app, server: listenServer, io }; // Export the listened server
+
+module.exports = { app, server: listenServer, io }; 

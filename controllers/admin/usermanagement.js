@@ -1,7 +1,7 @@
 const User = require("../../models/User");
 const bcrypt = require("bcrypt");
 
-// Get all users with pagination and search
+
 exports.getUsers = async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;

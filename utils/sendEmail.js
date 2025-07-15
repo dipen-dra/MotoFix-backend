@@ -1,10 +1,9 @@
-// C:\Users\dipen\motofix-backend\utils\sendEmail.js
 /**
  * @file utils/sendEmail.js
  * @description Email sending utility using Nodemailer.
  */
 
-const nodemailer = require('nodemailer'); // Changed import to require
+const nodemailer = require('nodemailer');
 
 /**
  * Sends an email using Nodemailer with a Gmail account.
@@ -15,26 +14,23 @@ const nodemailer = require('nodemailer'); // Changed import to require
  * @returns {Promise<boolean>} - A promise that resolves to true if the email is sent successfully, otherwise false.
  */
 const sendEmail = async (to, subject, html, attachments = []) => {
-  // Create a transporter object using the default SMTP transport
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-      user: process.env.EMAIL_USER, // Your Gmail address from .env
-      pass: process.env.EMAIL_PASS, // Your Gmail app password from .env
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
     },
   });
 
-  // Set up email data
   const mailOptions = {
-    from: `"MotoFix" <${process.env.EMAIL_USER}>`, // Sender address
-    to: to, // List of receivers
-    subject: subject, // Subject line
-    html: html, // HTML body
-    attachments: attachments, // Attachments (e.g., for the logo)
+    from: `"MotoFix" <${process.env.EMAIL_USER}>`,
+    to: to,
+    subject: subject,
+    html: html,
+    attachments: attachments,
   };
 
   try {
-    // Send mail with defined transport object
     const info = await transporter.sendMail(mailOptions);
     console.log('Email sent: ' + info.response);
     return true;
@@ -44,4 +40,4 @@ const sendEmail = async (to, subject, html, attachments = []) => {
   }
 };
 
-module.exports = sendEmail; // Changed export default to module.exports
+module.exports = sendEmail;

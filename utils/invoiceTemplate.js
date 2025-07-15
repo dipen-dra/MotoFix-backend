@@ -1,14 +1,13 @@
 const getInvoiceHTML = (booking, workshop) => {
-    const serviceCost = booking.totalCost; // This is the base service cost from the backend
+    const serviceCost = booking.totalCost; 
     const pickupDropoffCost = booking.requestedPickupDropoff ? (booking.pickupDropoffCost || 0) : 0;
-    const subtotalBeforeDiscount = serviceCost + pickupDropoffCost; // Sum of service and P/D
+    const subtotalBeforeDiscount = serviceCost + pickupDropoffCost; 
     const discount = booking.discountAmount || 0;
-    const grandTotal = booking.finalAmount; // This is the final amount after all calculations from backend
+    const grandTotal = booking.finalAmount; 
 
     const invoiceDate = new Date().toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
     const serviceDate = new Date(booking.date).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
 
-    // IMPORTANT: Replace this with the actual public URL to your logo
     const logoUrl = 'https://user-gen-media-assets.s3.amazonaws.com/gpt4o_images/22aff172-b276-441f-bcf5-c02c648871ce.png'; 
 
     return `

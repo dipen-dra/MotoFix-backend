@@ -1,8 +1,5 @@
-// test/dashboard.test.js
-
 const request = require('supertest');
-// IMPORT THE EXPORTED SERVER INSTANCE, NOT JUST THE APP
-const { app, server, io } = require('../index'); // <--- MODIFIED LINE
+const { app, server, io } = require('../index');
 const mongoose = require('mongoose');
 
 const User = require('../models/User');
@@ -31,8 +28,7 @@ beforeAll(async () => {
     testServiceId = testService._id;
     console.log('--- beforeAll: Created test service ---');
 
-    // Use the `server` instance for supertest requests
-    const registerRes = await request(server) // <--- CHANGED FROM app TO server
+    const registerRes = await request(server)
         .post('/api/auth/register')
         .send({
             fullName: testUserFullName,
@@ -49,8 +45,7 @@ beforeAll(async () => {
     expect(registerRes.body.success).toBe(true);
     console.log(`--- beforeAll: User registration status: ${registerRes.statusCode} ---`);
 
-    // Use the `server` instance for supertest requests
-    const loginRes = await request(server) // <--- CHANGED FROM app TO server
+    const loginRes = await request(server)
         .post('/api/auth/login')
         .send({
             email: 'dashuser@gmail.com',
@@ -131,9 +126,7 @@ afterAll(async () => {
         console.log('--- afterAll: MongoDB connection closed cleanly ---');
     }
 
-    // Now you can directly close the 'server' instance you imported
     if (server && server.listening) {
-        // Close Socket.IO connections first if they are directly managed by 'io'
         if (io) {
             io.close();
             console.log('--- afterAll: Socket.IO connections closed ---');
@@ -146,11 +139,9 @@ afterAll(async () => {
 
 describe('GET /api/user/dashboard-summary', () => {
     it('should return booking stats and loyalty points for authenticated user', async () => {
-        const res = await request(server) // <--- CHANGED FROM app TO server
+        const res = await request(server)
             .get('/api/user/dashboard-summary')
             .set('Authorization', `Bearer ${token}`);
-
-        // console.log('Response body for dashboard summary:', res.body);
 
         expect(res.statusCode).toBe(200);
         expect(res.body.success).toBe(true);
@@ -158,14 +149,14 @@ describe('GET /api/user/dashboard-summary', () => {
         expect(res.body.data).toHaveProperty('upcomingBookings', 2);
         expect(res.body.data).toHaveProperty('completedServices', 1);
         expect(res.body.data).toHaveProperty('recentBookings');
-        expect(res.body.data.recentBookings.length).toBe(3); 
+        expect(res.body.data.recentBookings.length).toBe(3);
     });
 
     it('should return 401 for unauthenticated request', async () => {
-        const res = await request(server).get('/api/user/dashboard-summary'); // <--- CHANGED FROM app TO server
-        
+        const res = await request(server).get('/api/user/dashboard-summary');
+
         expect(res.statusCode).toBe(401);
         expect(res.body.success).toBe(false);
-        expect(res.body.message).toMatch(/not authorized|no token|invalid token/i); 
+        expect(res.body.message).toMatch(/not authorized|no token|invalid token/i);
     });
 });

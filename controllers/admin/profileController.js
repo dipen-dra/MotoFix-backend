@@ -1,8 +1,7 @@
-// controllers/admin/profileController.js (Updated with pickup/dropoff fields)
 const Workshop = require('../../models/Workshop');
 const { single } = require('../../middlewares/fileupload');
 
-// Get workshop profile
+
 exports.getProfile = async (req, res) => {
     try {
         const profile = await Workshop.findOne();
@@ -25,7 +24,6 @@ exports.getProfile = async (req, res) => {
     }
 };
 
-// Update workshop profile
 exports.updateProfile = async (req, res) => {
     try {
         let profile = await Workshop.findOne();
@@ -35,7 +33,6 @@ exports.updateProfile = async (req, res) => {
         
         const updateData = { ...req.body };
 
-        // Handle new fields for pickup/dropoff
         if (updateData.offerPickupDropoff !== undefined) {
             updateData.offerPickupDropoff = updateData.offerPickupDropoff === 'true'; // Convert string to boolean if from form
         }
@@ -55,5 +52,4 @@ exports.updateProfile = async (req, res) => {
     }
 };
 
-// Middleware for single file upload
 exports.uploadProfilePicture = single('profilePicture');

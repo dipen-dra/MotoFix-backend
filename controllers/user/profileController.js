@@ -1,10 +1,5 @@
 const User = require('../../models/User');
 
-/**
- * @desc    Get user profile
- * @route   GET /api/user/profile
- * @access  Private
- */
 const getUserProfile = async (req, res) => {
     try {
         const user = await User.findById(req.user.id).select('-password');
@@ -18,13 +13,7 @@ const getUserProfile = async (req, res) => {
     }
 };
 
-/**
- * @desc    Update user profile
- * @route   PUT /api/user/profile
- * @access  Private
- */
 const updateUserProfile = async (req, res) => {
-    // Destructure 'address' from req.body
     const { fullName, email, phone, address } = req.body;
 
     try {
@@ -37,7 +26,6 @@ const updateUserProfile = async (req, res) => {
         user.fullName = fullName || user.fullName;
         user.email = email || user.email;
         user.phone = phone || user.phone;
-        // Update the user's address. Allows it to be set to an empty string.
         user.address = address !== undefined ? address : user.address;
 
         if (req.file) {

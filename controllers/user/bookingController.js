@@ -6,20 +6,17 @@
 const Booking = require('../../models/Booking');
 const Service = require('../../models/Service');
 const User = require('../../models/User');
-const Workshop = require('../../models/Workshop'); // Import Workshop model
+const Workshop = require('../../models/Workshop');
 const axios = require('axios');
 const sendEmail = require('../../utils/sendEmail');
 
+const SUCCESS_ICON_URL = 'https://cdn.vectorstock.com/i/500p/20/36/3d-green-check-icon-tick-mark-symbol-vector-56142036.jpg';
+const CANCEL_ICON_URL = 'https://media.istockphoto.com/id/1132722548/vector/round-red-x-mark-line-icon-button-cross-symbol-on-white-background.jpg?s=612x612&w=0&k=20&c=QnHlhWesKpmbov2MFn2yAMg6oqDS8YXnMC_iDsPK_BXQ=';
 
-// --- Icon URLs for direct use in email HTML for better reliability ---
-const SUCCESS_ICON_URL = 'https://cdn.vectorstock.com/i/500p/20/36/3d-green-check-icon-tick-mark-symbol-vector-56142036.jpg'; // Green tick icon
-const CANCEL_ICON_URL = 'https://media.istockphoto.com/id/1132722548/vector/round-red-x-mark-line-icon-button-cross-symbol-on-white-background.jpg?s=612x612&w=0&k=20&c=QnHlhWesKpmbov2MFn2yAMg6oqDS8YXmC_iDsPK_BXQ=';  // Red cross icon
-
-// Helper function to award loyalty points
 const awardLoyaltyPoints = async (userId) => {
     const user = await User.findById(userId);
     if (user) {
-        const pointsToAdd = Math.floor(Math.random() * 11) + 10; // 10 to 20 points
+        const pointsToAdd = Math.floor(Math.random() * 11) + 10;
         user.loyaltyPoints = (user.loyaltyPoints || 0) + pointsToAdd;
         await user.save();
         return pointsToAdd;
@@ -27,17 +24,10 @@ const awardLoyaltyPoints = async (userId) => {
     return 0;
 };
 
-// Helper function to calculate distance (dummy for now, can integrate a real geo-coding service)
-// This is a placeholder. In a real app, you'd use a map API (e.g., Google Maps API)
-// to get distance between coordinates. For now, it returns a random distance.
 const calculateDistance = (coord1, coord2) => {
-    // Implement actual distance calculation using lat/lng (e.g., Haversine formula)
-    // For demonstration, return a random distance in km
-    return parseFloat((Math.random() * (20 - 1) + 1).toFixed(2)); // Random distance between 1 and 20 km
+    return parseFloat((Math.random() * (20 - 1) + 1).toFixed(2));
 };
 
-
-// --- PAGINATED: For "My Bookings" page (This remains paginated) ---
 const getUserBookings = async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
@@ -64,7 +54,6 @@ const getUserBookings = async (req, res) => {
     }
 };
 
-// --- Gets a single booking for the edit page (Unchanged) ---
 const getUserBookingById = async (req, res) => {
     try {
         const booking = await Booking.findOne({ _id: req.params.id, customer: req.user.id });
@@ -77,8 +66,6 @@ const getUserBookingById = async (req, res) => {
     }
 };
 
-
-// --- Gets ALL pending bookings for the payment page (Unchanged) ---
 const getPendingBookings = async (req, res) => {
     try {
         const bookings = await Booking.find({ customer: req.user.id, paymentStatus: 'Pending', status: { $ne: 'Cancelled' } }).sort({ createdAt: -1 });
@@ -89,12 +76,10 @@ const getPendingBookings = async (req, res) => {
     }
 };
 
-// --- MODIFICATION: Payment History is now NOT paginated ---
 const getBookingHistory = async (req, res) => {
     try {
         const query = { customer: req.user.id, paymentStatus: 'Paid' };
 
-        // Fetch all paid bookings without pagination (no limit, no skip)
         const bookings = await Booking.find(query).sort({ createdAt: -1 });
             
         res.json({
@@ -127,7 +112,7 @@ const createBooking = async (req, res) => {
     try {
         const user = await User.findById(req.user.id);
         const service = await Service.findById(serviceId);
-        const workshop = await Workshop.findOne(); // Assuming single workshop profile
+        const workshop = await Workshop.findOne();
 
         if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
         if (!service) return res.status(404).json({ success: false, message: 'Service not found.' });
@@ -141,8 +126,7 @@ const createBooking = async (req, res) => {
             if (!pickupAddress || !dropoffAddress || !pickupCoordinates || !dropoffCoordinates) {
                 return res.status(400).json({ success: false, message: 'Pickup/Dropoff details are incomplete.' });
             }
-            // Calculate distance and cost
-            pickupDropoffDistance = calculateDistance(pickupCoordinates, dropoffCoordinates); // Implement real distance calculation
+            pickupDropoffDistance = calculateDistance(pickupCoordinates, dropoffCoordinates);
             pickupDropoffCost = pickupDropoffDistance * workshop.pickupDropoffChargePerKm;
             finalAmount += pickupDropoffCost;
         } else if (requestedPickupDropoff && !workshop.offerPickupDropoff) {
@@ -157,12 +141,11 @@ const createBooking = async (req, res) => {
             bikeModel,
             date,
             notes,
-            totalCost: service.price, // Base service cost
-            finalAmount: finalAmount, // Base cost + pickup/dropoff cost
+            totalCost: service.price,
+            finalAmount: finalAmount,
             status: 'Pending',
             paymentStatus: 'Pending',
             isPaid: false,
-            // Pickup/Dropoff fields
             requestedPickupDropoff: requestedPickupDropoff || false,
             pickupAddress: requestedPickupDropoff ? pickupAddress : '',
             dropoffAddress: requestedPickupDropoff ? dropoffAddress : '',
@@ -194,7 +177,7 @@ const updateUserBooking = async (req, res) => {
             dropoffCoordinates
         } = req.body;
         let booking = await Booking.findById(req.params.id);
-        const workshop = await Workshop.findOne(); // Assuming single workshop profile
+        const workshop = await Workshop.findOne();
 
         if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
         if (booking.customer.toString() !== req.user.id) return res.status(401).json({ success: false, message: 'User not authorized' });
@@ -203,9 +186,7 @@ const updateUserBooking = async (req, res) => {
         }
         if (!workshop) return res.status(500).json({ success: false, message: 'Workshop profile not found. Cannot update booking.' });
 
-
-        // Recalculate costs if service or pickup/dropoff changes
-        let newTotalCost = booking.totalCost; // This is the base service cost
+        let newTotalCost = booking.totalCost;
         let newPickupDropoffCost = 0;
         let newPickupDropoffDistance = 0;
 
@@ -213,11 +194,10 @@ const updateUserBooking = async (req, res) => {
             const service = await Service.findById(serviceId);
             if (!service) return res.status(404).json({ success: false, message: 'New service not found.' });
             booking.serviceType = service.name;
-            newTotalCost = service.price; // Update base service cost
+            newTotalCost = service.price;
             booking.service = serviceId; 
         }
 
-        // Handle pickup/dropoff changes
         if (requestedPickupDropoff !== undefined) {
             booking.requestedPickupDropoff = requestedPickupDropoff;
             if (requestedPickupDropoff && workshop.offerPickupDropoff) {
@@ -236,7 +216,6 @@ const updateUserBooking = async (req, res) => {
             } else if (requestedPickupDropoff && !workshop.offerPickupDropoff) {
                 return res.status(400).json({ success: false, message: 'Pickup and Dropoff service is not offered by the workshop.' });
             } else {
-                // If requestedPickupDropoff is false, clear all related fields
                 booking.pickupAddress = '';
                 booking.dropoffAddress = '';
                 booking.pickupCoordinates = undefined;
@@ -246,7 +225,6 @@ const updateUserBooking = async (req, res) => {
             }
             booking.pickupDropoffCost = newPickupDropoffCost;
         } else {
-             // If requestedPickupDropoff is not changed, but pickup/dropoff details are sent, update them
              if (booking.requestedPickupDropoff && workshop.offerPickupDropoff) {
                 let recalculate = false;
                 if (pickupAddress && booking.pickupAddress !== pickupAddress) { booking.pickupAddress = pickupAddress; recalculate = true; }
@@ -263,10 +241,8 @@ const updateUserBooking = async (req, res) => {
             }
         }
 
-        // Update base cost
         booking.totalCost = newTotalCost;
 
-        // Recalculate finalAmount based on new totalCost and pickupDropoffCost
         let calculatedFinalAmount = newTotalCost + booking.pickupDropoffCost;
         if (booking.discountApplied) {
             booking.finalAmount = calculatedFinalAmount - (calculatedFinalAmount * 0.20);
@@ -297,7 +273,7 @@ const deleteUserBooking = async (req, res) => {
         if (booking.discountApplied) {
             const user = await User.findById(req.user.id);
             if (user) {
-                user.loyaltyPoints += 100; // Refund the 100 points
+                user.loyaltyPoints += 100;
                 await user.save();
             }
         }
@@ -440,7 +416,6 @@ const applyLoyaltyDiscount = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Not enough loyalty points. You need at least 100.' });
         }
 
-        // Calculate discount based on totalCost (base service cost + pickup/dropoff cost)
         const discountValue = (booking.totalCost + booking.pickupDropoffCost) * 0.20;
         booking.finalAmount = (booking.totalCost + booking.pickupDropoffCost) - discountValue;
         booking.discountApplied = true;

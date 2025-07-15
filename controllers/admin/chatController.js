@@ -5,7 +5,6 @@ const fs = require('fs');
 const Message = require('../../models/Message');
 const User = require('../../models/User');
 
-// --- Multer Configuration for File Uploads (no change) ---
 const uploadDir = 'uploads/chat';
 
 if (!fs.existsSync(uploadDir)) {
@@ -22,7 +21,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } }).single('file');
 
-// @desc    Upload a file to a chat room (no change)
+
 const uploadChatFile = (req, res) => {
     upload(req, res, async (err) => {
         if (err) return res.status(400).json({ message: `File upload error: ${err.message}` });
@@ -46,21 +45,18 @@ const uploadChatFile = (req, res) => {
     });
 };
 
-// @desc    Get a list of users who have sent messages for the admin panel (UPDATED)
 const getChatUsers = async (req, res) => {
     try {
         const pipeline = [
-            // Stage 1: Filter to get ONLY user messages that are not cleared by admin.
             { 
                 $match: { 
                     clearedForAdmin: { $ne: true },
                     authorId: { $ne: 'admin_user' } 
                 } 
             },
-            // Stage 2: Sort by the correct 'createdAt' field to find the most recent user message.
+        
             { $sort: { createdAt: -1 } },
             
-            // Stage 3: Group by room to get the single latest message for each conversation.
             {
                 $group: {
                     _id: '$room',
@@ -94,7 +90,6 @@ const getChatUsers = async (req, res) => {
                     unreadCount: 1
                 }
             },
-            // Final sort by the correct timestamp.
             { $sort: { lastMessageTimestamp: -1 } }
         ];
         const conversations = await Message.aggregate(pipeline);
@@ -105,7 +100,7 @@ const getChatUsers = async (req, res) => {
     }
 };
 
-// @desc    Clear chat history from the ADMIN's view (no change)
+
 const clearChatForAdmin = async (req, res) => {
     try {
         const { userId } = req.params;

@@ -10,8 +10,6 @@ const {
 } = require("../../controllers/admin/usermanagement");
 const { authenticateUser, isAdmin } = require("../../middlewares/authorizedUser");
 
-// Note: Ensure that every function listed in the 'require' statement above
-// is correctly defined and exported in your usermanagement.js file.
 
 router.get("/", authenticateUser, isAdmin, getUsers);
 router.get("/:id", authenticateUser, isAdmin, getOneUser);

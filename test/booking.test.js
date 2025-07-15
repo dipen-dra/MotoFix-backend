@@ -1,56 +1,43 @@
 const request = require('supertest');
-// Import the server instance from your main application file
-const { app, server, io } = require('../index'); // Ensure your index.js exports { app, server, io }
+const { app, server, io } = require('../index');
 const mongoose = require('mongoose');
 
-// Import your Mongoose models
 const User = require('../models/User');
 const Service = require('../models/Service');
 const Booking = require('../models/Booking');
-const Workshop = require('../models/Workshop'); // Confirm this path matches your project structure (e.g., `../models/Workshop`)
+const Workshop = require('../models/Workshop');
 
-// --- Global Test Variables ---
 let token;
 let userId;
-let testUserFullName = 'Booking Test User'; // Specific user for this test suite
-let testServiceId; // ID of the dummy service created in beforeAll
-let testWorkshopId; // ID of the dummy workshop created in beforeAll
+let testUserFullName = 'Booking Test User';
+let testServiceId;
+let testWorkshopId;
 
-// Bookings created in beforeAll for consistent state across multiple tests
-let initialBookingId;       // Used for basic GET/PUT, then COD payment, then apply discount paid check
-let paidBookingId;          // Pre-created completed/paid booking for history/negative tests
-let inProgressBookingId;    // Pre-created in-progress booking for negative update tests
-let pendingForDeleteBookingId; // Pre-created pending booking for deletion test
-let pendingForDiscountInsufficientId; // Pre-created pending booking for insufficient loyalty points test
-let pendingForKhaltiId;     // Pre-created pending booking for Khalti payment test
+let initialBookingId;
+let paidBookingId;
+let inProgressBookingId;
+let pendingForDeleteBookingId;
+let pendingForDiscountInsufficientId;
+let pendingForKhaltiId;
 
-// --- Mocking external modules for tests ---
-// Mock axios for Khalti payment verification to prevent actual external calls
 jest.mock('axios', () => ({
     post: jest.fn(() => Promise.resolve({ data: { idx: 'mock_khalti_idx', status: 'COMPLETE' } }))
 }));
 
-// Mock sendEmail utility to prevent actual emails from being sent during tests.
-// Jest will auto-mock '../utils/sendEmail' with a mock function.
-// Then, we `require` it to get a reference to that mock function for assertions.
 jest.mock('../utils/sendEmail');
 const sendEmail = require('../utils/sendEmail');
 
 beforeAll(async () => {
-    // --- Database Cleanup ---
-    // Clear all relevant collections before starting tests to ensure a clean slate
     await User.deleteMany({ email: 'bookingtestuser@example.com' });
     await Booking.deleteMany({});
     await Service.deleteMany({ name: 'Test Booking Service' });
     await Workshop.deleteMany({});
     console.log('--- beforeAll (Booking Tests): Cleaned up previous test data ---');
 
-    // --- Create a dummy Workshop Profile ---
-    // This is essential as the booking controller often checks workshop settings (e.g., pickup/dropoff).
     const workshop = await Workshop.create({
         ownerName: 'Booking Workshop Owner',
         workshopName: 'Booking MotoFix Workshop',
-        email: 'booking.workshop@example.com', // Unique email for workshop
+        email: 'booking.workshop@example.com',
         phone: '111-222-3333',
         address: '456 Test Lane, Kathmandu',
         profilePicture: 'https://example.com/booking-workshop.jpg',
@@ -60,7 +47,6 @@ beforeAll(async () => {
     testWorkshopId = workshop._id;
     console.log('--- beforeAll (Booking Tests): Created test workshop ---');
 
-    // --- Register a test user ---
     const registerRes = await request(server)
         .post('/api/auth/register')
         .send({
@@ -70,28 +56,25 @@ beforeAll(async () => {
             phone: '9876543211',
             address: 'Test Address 123',
         });
-    expect(registerRes.statusCode).toBe(201); // Assert registration success
+    expect(registerRes.statusCode).toBe(201);
 
-    // --- Login to get JWT token and user ID ---
     const loginRes = await request(server)
         .post('/api/auth/login')
         .send({
             email: 'bookingtestuser@example.com',
             password: 'SecureBookingPass123!',
         });
-    expect(loginRes.statusCode).toBe(200); // Assert login success
+    expect(loginRes.statusCode).toBe(200);
     expect(loginRes.body).toHaveProperty('token');
     token = loginRes.body.token;
 
-    // Fetch the created user to get their actual ID and set loyalty points
     const user = await User.findOne({ email: 'bookingtestuser@example.com' });
     expect(user).not.toBeNull();
     userId = user._id;
-    user.loyaltyPoints = 200; // Starting with enough points for discount tests
+    user.loyaltyPoints = 200;
     await user.save();
     console.log(`--- beforeAll (Booking Tests): User ${testUserFullName} created and logged in. Loyalty points: ${user.loyaltyPoints} ---`);
 
-    // --- Create a dummy service for bookings ---
     const service = await Service.create({
         name: 'Test Booking Service',
         description: 'A service for testing bookings functionality.',
@@ -103,16 +86,14 @@ beforeAll(async () => {
     testServiceId = service._id;
     console.log('--- beforeAll (Booking Tests): Created test service ---');
 
-    // --- Create various test bookings with specific initial states ---
     const bookings = await Booking.create([
-        // 0. Initial booking: Pending, used for basic GET/PUT/COD payment tests (index 0)
         {
             customer: userId,
             customerName: testUserFullName,
             service: testServiceId,
             serviceType: 'Test Booking Service',
             bikeModel: 'Honda Initial',
-            date: new Date(Date.now() + 86400000), // Tomorrow
+            date: new Date(Date.now() + 86400000),
             notes: 'Initial booking for general tests.',
             totalCost: 1000,
             finalAmount: 1000,
@@ -120,7 +101,6 @@ beforeAll(async () => {
             paymentStatus: 'Pending',
             isPaid: false,
         },
-        // 1. Generic Pending Booking: Used for counting, will not be modified by other specific tests (index 1)
         {
             customer: userId,
             customerName: testUserFullName,
@@ -135,14 +115,13 @@ beforeAll(async () => {
             paymentStatus: 'Pending',
             isPaid: false,
         },
-        // 2. Already Completed and Paid Booking: For history, and negative update/delete tests (index 2)
         {
             customer: userId,
             customerName: testUserFullName,
             service: testServiceId,
             serviceType: 'Test Booking Service',
             bikeModel: 'Bajaj Completed',
-            date: new Date(Date.now() - 86400000), // Yesterday
+            date: new Date(Date.now() - 86400000),
             notes: 'Completed and paid booking.',
             totalCost: 1000,
             finalAmount: 1000,
@@ -150,7 +129,6 @@ beforeAll(async () => {
             paymentStatus: 'Paid',
             isPaid: true,
         },
-        // 3. In-Progress Booking: For negative update/delete tests (index 3)
         {
             customer: userId,
             customerName: testUserFullName,
@@ -165,8 +143,7 @@ beforeAll(async () => {
             paymentStatus: 'Pending',
             isPaid: false,
         },
-         // 4. Pending Booking for Deletion Test: Will be deleted (index 4)
-         {
+        {
             customer: userId,
             customerName: testUserFullName,
             service: testServiceId,
@@ -180,7 +157,6 @@ beforeAll(async () => {
             paymentStatus: 'Pending',
             isPaid: false,
         },
-        // 5. Pending Booking for Insufficient Loyalty Points Test: (index 5)
         {
             customer: userId,
             customerName: testUserFullName,
@@ -195,7 +171,6 @@ beforeAll(async () => {
             paymentStatus: 'Pending',
             isPaid: false,
         },
-        // 6. Pending Booking for Khalti Payment Test: (index 6)
         {
             customer: userId,
             customerName: testUserFullName,
@@ -212,9 +187,7 @@ beforeAll(async () => {
         },
     ]);
 
-    // Store the IDs of the pre-created bookings
     initialBookingId = bookings[0]._id;
-    // discountBookingId will be created and used within its specific test block for isolation.
     paidBookingId = bookings[2]._id;
     inProgressBookingId = bookings[3]._id;
     pendingForDeleteBookingId = bookings[4]._id;
@@ -225,20 +198,17 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-    // --- Database Cleanup after all tests in this suite ---
     await User.deleteMany({ email: 'bookingtestuser@example.com' });
     await Booking.deleteMany({});
     await Service.deleteMany({ name: 'Test Booking Service' });
     await Workshop.deleteMany({});
     console.log('--- afterAll (Booking Tests): Cleaned up all test data ---');
 
-    // --- Close Mongoose connection cleanly ---
     if (mongoose.connection.readyState === 1) {
         await mongoose.connection.close();
         console.log('--- afterAll (Booking Tests): MongoDB connection closed cleanly ---');
     }
 
-    // --- Explicitly close the HTTP server and Socket.IO connections ---
     if (server && server.listening) {
         if (io) {
             io.close();
@@ -249,17 +219,13 @@ afterAll(async () => {
     }
 });
 
-// --- Main Test Suite for Booking Operations ---
 describe('User Booking Operations', () => {
 
-    // Before each test, clear the mock calls for sendEmail to ensure isolated assertions
     beforeEach(() => {
         sendEmail.mockClear();
     });
 
-    // --- Test 1: Create Booking ---
     it('should create a new booking successfully without pickup/dropoff', async () => {
-        // Create a FRESH booking for this test to avoid conflicting with pre-created ones
         const res = await request(server)
             .post('/api/user/bookings')
             .set('Authorization', `Bearer ${token}`)
@@ -327,7 +293,6 @@ describe('User Booking Operations', () => {
     });
 
     it('should return 400 if pickup/dropoff is requested but workshop does not offer it', async () => {
-        // Temporarily disable pickup/dropoff service in workshop
         await Workshop.findByIdAndUpdate(testWorkshopId, { offerPickupDropoff: false });
 
         const res = await request(server)
@@ -347,12 +312,10 @@ describe('User Booking Operations', () => {
         expect(res.body.success).toBe(false);
         expect(res.body.message).toBe('Pickup and Dropoff service is not offered by the workshop.');
 
-        // Re-enable for other tests
         await Workshop.findByIdAndUpdate(testWorkshopId, { offerPickupDropoff: true });
     });
 
 
-    // --- Test 2: Get Bookings (Paginated) ---
     it('should get a paginated list of user bookings', async () => {
         const res = await request(server)
             .get('/api/user/bookings?page=1&limit=2')
@@ -365,7 +328,6 @@ describe('User Booking Operations', () => {
         expect(res.body).toHaveProperty('currentPage', 1);
     });
 
-    // --- Test 3: Get Single Booking by ID ---
     it('should get a single booking by ID', async () => {
         const res = await request(server)
             .get(`/api/user/bookings/${initialBookingId}`)
@@ -386,7 +348,6 @@ describe('User Booking Operations', () => {
         expect(res.body.message).toMatch(/Booking not found/i);
     });
 
-    // --- Test 4: Get Pending Bookings ---
     it('should get all pending bookings for the user', async () => {
         const res = await request(server)
             .get('/api/user/bookings/pending')
@@ -394,9 +355,6 @@ describe('User Booking Operations', () => {
 
         expect(res.statusCode).toBe(200);
         expect(res.body.success).toBe(true);
-        // We have 7 bookings from beforeAll that are pending/in-progress.
-        // The first test case adds one more pending booking.
-        // So, 7 + 1 = 8 pending/in-progress bookings.
         expect(res.body.data.length).toBe(8);
         res.body.data.forEach(booking => {
             expect(booking.paymentStatus).toBe('Pending');
@@ -405,7 +363,6 @@ describe('User Booking Operations', () => {
         });
     });
 
-    // --- Test 5: Get Booking History (Paid Bookings) ---
     it('should get all paid bookings for the user (history)', async () => {
         const res = await request(server)
             .get('/api/user/bookings/history')
@@ -413,18 +370,16 @@ describe('User Booking Operations', () => {
 
         expect(res.statusCode).toBe(200);
         expect(res.body.success).toBe(true);
-        // We created exactly 1 completed/paid booking in beforeAll (`paidBookingId`)
         expect(res.body.data.length).toBe(1);
         expect(res.body.data[0].paymentStatus).toBe('Paid');
         expect(res.body.data[0].isPaid).toBe(true);
     });
 
 
-    // --- Test 6: Update Booking ---
     it('should update a pending booking successfully', async () => {
         const updatedDate = new Date(Date.now() + 5 * 86400000).toISOString();
         const res = await request(server)
-            .put(`/api/user/bookings/${initialBookingId}`) // Use the initial booking
+            .put(`/api/user/bookings/${initialBookingId}`)
             .set('Authorization', `Bearer ${token}`)
             .send({
                 bikeModel: 'New Bike Model',
@@ -440,7 +395,6 @@ describe('User Booking Operations', () => {
     });
 
     it('should update a pending booking and change pickup/dropoff status', async () => {
-        // Create a temporary booking for this specific test's lifecycle
         const tempBookingRes = await request(server)
             .post('/api/user/bookings')
             .set('Authorization', `Bearer ${token}`)
@@ -454,7 +408,6 @@ describe('User Booking Operations', () => {
         expect(tempBookingRes.statusCode).toBe(201);
         const tempBookingId = tempBookingRes.body.data._id;
 
-        // Now, update it to request pickup/dropoff
         const res = await request(server)
             .put(`/api/user/bookings/${tempBookingId}`)
             .set('Authorization', `Bearer ${token}`)
@@ -475,7 +428,6 @@ describe('User Booking Operations', () => {
         expect(res.body.data.pickupDropoffCost).toBeGreaterThan(0);
         expect(res.body.data.finalAmount).toBeGreaterThan(res.body.data.totalCost);
 
-        // Update it back to NOT request pickup/dropoff
         const res2 = await request(server)
             .put(`/api/user/bookings/${tempBookingId}`)
             .set('Authorization', `Bearer ${token}`)
@@ -515,9 +467,7 @@ describe('User Booking Operations', () => {
         expect(resInProgress.body.message).toMatch(/Cannot edit a booking that is already in progress, paid, or has a discount/i);
     });
 
-    // --- Test 7: Delete Booking ---
     it('should delete a pending booking successfully', async () => {
-        // Use the pre-created pending booking specifically for deletion
         const res = await request(server)
             .delete(`/api/user/bookings/${pendingForDeleteBookingId}`)
             .set('Authorization', `Bearer ${token}`);
@@ -531,7 +481,6 @@ describe('User Booking Operations', () => {
     });
 
     it('should refund loyalty points if a discounted booking is cancelled', async () => {
-        // Create a dedicated booking for this test to ensure its state is pristine
         const tempDiscountRefundBookingRes = await request(server)
             .post('/api/user/bookings')
             .set('Authorization', `Bearer ${token}`)
@@ -545,37 +494,34 @@ describe('User Booking Operations', () => {
         expect(tempDiscountRefundBookingRes.statusCode).toBe(201);
         const tempDiscountRefundBookingId = tempDiscountRefundBookingRes.body.data._id;
 
-        // Ensure user has enough points for the initial discount application
         let userBeforeDiscount = await User.findById(userId);
-        await User.findByIdAndUpdate(userId, { loyaltyPoints: userBeforeDiscount.loyaltyPoints + 100 }); // Ensure at least 100 points
-        userBeforeDiscount = await User.findById(userId); // Re-fetch updated user to get current points
+        await User.findByIdAndUpdate(userId, { loyaltyPoints: userBeforeDiscount.loyaltyPoints + 100 });
+        userBeforeDiscount = await User.findById(userId);
         const initialLoyaltyPoints = userBeforeDiscount.loyaltyPoints;
 
-        // Apply discount first
         const discountRes = await request(server)
             .put(`/api/user/bookings/${tempDiscountRefundBookingId}/apply-discount`)
             .set('Authorization', `Bearer ${token}`);
 
-        console.log('Refund Loyalty Points - Apply Discount Status:', discountRes.statusCode, discountRes.body); // Debugging
+        console.log('Refund Loyalty Points - Apply Discount Status:', discountRes.statusCode, discountRes.body);
 
         expect(discountRes.statusCode).toBe(200);
         expect(discountRes.body.success).toBe(true);
         expect(discountRes.body.data.booking.discountApplied).toBe(true);
         expect(discountRes.body.data.loyaltyPoints).toBe(initialLoyaltyPoints - 100);
 
-        // Now delete the discounted booking
         const deleteRes = await request(server)
             .delete(`/api/user/bookings/${tempDiscountRefundBookingId}`)
             .set('Authorization', `Bearer ${token}`);
 
-        console.log('Refund Loyalty Points - Delete Status:', deleteRes.statusCode, deleteRes.body); // Debugging
+        console.log('Refund Loyalty Points - Delete Status:', deleteRes.statusCode, deleteRes.body);
 
         expect(deleteRes.statusCode).toBe(200);
         expect(deleteRes.body.success).toBe(true);
         expect(deleteRes.body.message).toMatch(/Any used loyalty points have been refunded/i);
 
         const userAfterRefund = await User.findById(userId);
-        expect(userAfterRefund.loyaltyPoints).toBe(initialLoyaltyPoints); // Should be back to original
+        expect(userAfterRefund.loyaltyPoints).toBe(initialLoyaltyPoints);
     });
 
     it('should return 400 if trying to delete a paid booking', async () => {
@@ -588,9 +534,7 @@ describe('User Booking Operations', () => {
         expect(res.body.message).toBe('Cannot cancel a booking that has been paid for.');
     });
 
-    // --- Test 8: Confirm Payment (COD) ---
     it('should confirm COD payment for a booking and award loyalty points', async () => {
-        // Reset booking state if it was somehow paid in a prior test (for test independence)
         await Booking.findByIdAndUpdate(initialBookingId, { isPaid: false, paymentStatus: 'Pending', discountApplied: false });
 
         const booking = await Booking.findById(initialBookingId);
@@ -615,7 +559,7 @@ describe('User Booking Operations', () => {
         expect(userAfterPayment.loyaltyPoints).toBeGreaterThan(initialPoints);
         expect(res.body.data.pointsAwarded).toBe(userAfterPayment.loyaltyPoints - initialPoints);
 
-        expect(sendEmail).toHaveBeenCalledTimes(1); // Use the directly imported mock
+        expect(sendEmail).toHaveBeenCalledTimes(1);
         expect(sendEmail).toHaveBeenCalledWith(
             expect.any(String),
             expect.stringContaining('Your MotoFix Booking is Confirmed!'),
@@ -624,7 +568,6 @@ describe('User Booking Operations', () => {
     });
 
     it('should return 400 if booking is already paid (COD)', async () => {
-        // This test relies on the previous test having paid `initialBookingId`
         const res = await request(server)
             .put(`/api/user/bookings/${initialBookingId}/pay`)
             .set('Authorization', `Bearer ${token}`)
@@ -635,9 +578,7 @@ describe('User Booking Operations', () => {
         expect(res.body.message).toBe('Booking is already paid.');
     });
 
-    // --- Test 9: Verify Khalti Payment ---
     it('should verify Khalti payment and update booking status and award loyalty points', async () => {
-        // Ensure booking is not paid or discounted for this test
         await Booking.findByIdAndUpdate(pendingForKhaltiId, { isPaid: false, paymentStatus: 'Pending', discountApplied: false });
 
         const booking = await Booking.findById(pendingForKhaltiId);
@@ -651,7 +592,7 @@ describe('User Booking Operations', () => {
             .set('Authorization', `Bearer ${token}`)
             .send({
                 token: 'mock_khalti_token',
-                amount: khaltiBookingAmount * 100, // Khalti expects amount in paisa
+                amount: khaltiBookingAmount * 100,
                 booking_id: pendingForKhaltiId.toString()
             });
 
@@ -682,16 +623,14 @@ describe('User Booking Operations', () => {
             .set('Authorization', `Bearer ${token}`)
             .send({
                 token: 'mock_token',
-                amount: 1000 // Missing booking_id
+                amount: 1000
             });
         expect(res.statusCode).toBe(400);
         expect(res.body.success).toBe(false);
         expect(res.body.message).toBe('Missing payment verification details.');
     });
 
-    // --- Test 10: Apply Loyalty Discount ---
     it('should apply loyalty discount to a booking and deduct points', async () => {
-        // Create a new booking dedicated to this test to ensure clean state
         const tempDiscountBookingRes = await request(server)
             .post('/api/user/bookings')
             .set('Authorization', `Bearer ${token}`)
@@ -704,16 +643,15 @@ describe('User Booking Operations', () => {
             });
         expect(tempDiscountBookingRes.statusCode).toBe(201);
         const tempDiscountBookingId = tempDiscountBookingRes.body.data._id;
-        
-        // Ensure user has enough loyalty points for THIS test
+
         let userBeforeDiscount = await User.findById(userId);
         await User.findByIdAndUpdate(userId, { loyaltyPoints: userBeforeDiscount.loyaltyPoints + 100 });
-        userBeforeDiscount = await User.findById(userId); // Re-fetch updated user for current points
+        userBeforeDiscount = await User.findById(userId);
         const initialLoyaltyPoints = userBeforeDiscount.loyaltyPoints;
 
         const booking = await Booking.findById(tempDiscountBookingId);
         if (!booking) {
-            throw new Error('Booking for discount test was not found!'); // Explicitly fail if not found
+            throw new Error('Booking for discount test was not found!');
         }
 
         expect(booking.discountApplied).toBe(false);
@@ -723,7 +661,7 @@ describe('User Booking Operations', () => {
             .put(`/api/user/bookings/${tempDiscountBookingId}/apply-discount`)
             .set('Authorization', `Bearer ${token}`);
 
-        console.log('Apply discount response (should be 200):', res.statusCode, res.body); // Debugging
+        console.log('Apply discount response (should be 200):', res.statusCode, res.body);
 
         expect(res.statusCode).toBe(200);
         expect(res.body.success).toBe(true);
@@ -737,9 +675,7 @@ describe('User Booking Operations', () => {
     });
 
     it('should return 400 if not enough loyalty points for discount', async () => {
-        // Ensure booking is not discounted or paid for this test's specific scenario
         await Booking.findByIdAndUpdate(pendingForDiscountInsufficientId, { discountApplied: false, isPaid: false });
-        // Set user's loyalty points to less than 100 for THIS test
         await User.findByIdAndUpdate(userId, { loyaltyPoints: 50 });
 
         const res = await request(server)
@@ -750,12 +686,10 @@ describe('User Booking Operations', () => {
         expect(res.body.success).toBe(false);
         expect(res.body.message).toBe('Not enough loyalty points. You need at least 100.');
 
-        // Reset user's loyalty points back to default for other tests
         await User.findByIdAndUpdate(userId, { loyaltyPoints: 200 });
     });
 
     it('should return 400 if discount already applied', async () => {
-        // Create a new booking and apply discount for this specific test's setup
         const tempAlreadyDiscountedBookingRes = await request(server)
             .post('/api/user/bookings')
             .set('Authorization', `Bearer ${token}`)
@@ -769,18 +703,16 @@ describe('User Booking Operations', () => {
         expect(tempAlreadyDiscountedBookingRes.statusCode).toBe(201);
         const tempAlreadyDiscountedBookingId = tempAlreadyDiscountedBookingRes.body.data._id;
 
-        // Apply discount first to make it "already applied"
         const applyRes = await request(server)
             .put(`/api/user/bookings/${tempAlreadyDiscountedBookingId}/apply-discount`)
             .set('Authorization', `Bearer ${token}`);
-        expect(applyRes.statusCode).toBe(200); // Ensure initial discount applies
+        expect(applyRes.statusCode).toBe(200);
 
-        // Now try to apply discount again (should fail with 400)
         const res = await request(server)
             .put(`/api/user/bookings/${tempAlreadyDiscountedBookingId}/apply-discount`)
             .set('Authorization', `Bearer ${token}`);
 
-        console.log('Discount already applied response (should be 400):', res.statusCode, res.body); // Debugging
+        console.log('Discount already applied response (should be 400):', res.statusCode, res.body);
 
         expect(res.statusCode).toBe(400);
         expect(res.body.success).toBe(false);
@@ -788,7 +720,6 @@ describe('User Booking Operations', () => {
     });
 
     it('should return 400 if trying to apply discount to a paid booking', async () => {
-        // Use the booking already confirmed via COD (`initialBookingId`)
         const paidBooking = await Booking.findById(initialBookingId);
         expect(paidBooking.isPaid).toBe(true);
 
@@ -801,26 +732,21 @@ describe('User Booking Operations', () => {
         expect(res.body.message).toBe('Cannot apply discount to a paid booking.');
     });
 
-    // --- Test: Unauthenticated access ---
     it('should return 401 for unauthenticated access to any booking route', async () => {
-        // Ensure critical IDs are available for building test URLs
         if (!initialBookingId || !paidBookingId || !inProgressBookingId) {
             console.warn('Skipping unauthenticated access tests due to missing critical booking IDs. Ensure beforeAll completes successfully.');
             throw new Error('Required booking IDs are null. Check beforeAll setup and data population.');
         }
 
-        // Use a dummy valid-looking ObjectId for routes that expect an ID,
-        // as the actual ID content doesn't matter for 401 unauthenticated checks.
         const dummyObjectId = new mongoose.Types.ObjectId().toString();
 
         const routesToTestGET = [
-            '/api/user/bookings', // Base GET all bookings (paginated)
-            `/api/user/bookings/${dummyObjectId}`, // GET specific booking by ID
-            '/api/user/bookings/pending', // GET pending bookings
-            '/api/user/bookings/history' // GET booking history
+            '/api/user/bookings',
+            `/api/user/bookings/${dummyObjectId}`,
+            '/api/user/bookings/pending',
+            '/api/user/bookings/history'
         ];
 
-        // Test GET requests without authentication
         for (const route of routesToTestGET) {
             const res = await request(server).get(route);
             expect(res.statusCode).toBe(401);
@@ -828,7 +754,6 @@ describe('User Booking Operations', () => {
             expect(res.body.message).toMatch(/not authorized|no token/i);
         }
 
-        // Test POST to create a booking without authentication
         const postRes = await request(server)
             .post('/api/user/bookings')
             .send({ serviceId: testServiceId, bikeModel: 'Unauth Bike', date: new Date().toISOString() });
@@ -836,7 +761,6 @@ describe('User Booking Operations', () => {
         expect(postRes.body.success).toBe(false);
         expect(postRes.body.message).toMatch(/not authorized|no token/i);
 
-        // Test PUT to update a booking without authentication
         const putResUpdate = await request(server)
             .put(`/api/user/bookings/${dummyObjectId}`)
             .send({ bikeModel: 'Unauth Update' });
@@ -844,7 +768,6 @@ describe('User Booking Operations', () => {
         expect(putResUpdate.body.success).toBe(false);
         expect(putResUpdate.body.message).toMatch(/not authorized|no token/i);
 
-        // Test PUT to confirm payment (COD) without authentication
         const putResPay = await request(server)
             .put(`/api/user/bookings/${dummyObjectId}/pay`)
             .send({ paymentMethod: 'COD' });
@@ -852,7 +775,6 @@ describe('User Booking Operations', () => {
         expect(putResPay.body.success).toBe(false);
         expect(putResPay.body.message).toMatch(/not authorized|no token/i);
 
-        // Test PUT to apply discount without authentication
         const putResDiscount = await request(server)
             .put(`/api/user/bookings/${dummyObjectId}/apply-discount`)
             .send({});
@@ -860,7 +782,6 @@ describe('User Booking Operations', () => {
         expect(putResDiscount.body.success).toBe(false);
         expect(putResDiscount.body.message).toMatch(/not authorized|no token/i);
 
-        // Test POST to verify Khalti payment without authentication
         const postResKhalti = await request(server)
             .post('/api/user/bookings/verify-khalti')
             .send({ token: 'dummy', amount: 100, booking_id: dummyObjectId });
@@ -868,7 +789,6 @@ describe('User Booking Operations', () => {
         expect(postResKhalti.body.success).toBe(false);
         expect(postResKhalti.body.message).toMatch(/not authorized|no token/i);
 
-        // Test DELETE a booking without authentication
         const deleteRes = await request(server)
             .delete(`/api/user/bookings/${dummyObjectId}`);
         expect(deleteRes.statusCode).toBe(401);

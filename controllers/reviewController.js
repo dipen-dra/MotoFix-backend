@@ -5,14 +5,8 @@
 
 const Booking = require('../models/Booking');
 const Service = require('../models/Service');
-// The 'User' import is not strictly necessary here, but we can leave it.
 const User = require('../models/User');
 
-/**
- * @route   POST /api/reviews/:bookingId
- * @desc    Create a new review for a service via a completed booking
- * @access  Private (User)
- */
 const createServiceReview = async (req, res) => {
     const { rating, comment } = req.body;
     const { bookingId } = req.params;

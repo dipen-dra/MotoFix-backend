@@ -10,7 +10,6 @@ const messageSchema = new mongoose.Schema({
     fileType: { type: String },
     isRead: { type: Boolean, default: false },
     
-    // ⭐️ REPLACED single flag with two new flags
     clearedForUser: { type: Boolean, default: false },
     clearedForAdmin: { type: Boolean, default: false }
 
@@ -18,7 +17,6 @@ const messageSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Create a compound index for efficient querying
 messageSchema.index({ room: 1, clearedForUser: 1 });
 messageSchema.index({ room: 1, clearedForAdmin: 1 });
 

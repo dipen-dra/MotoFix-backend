@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { getDashboardSummary } = require('../../controllers/user/dashboardController');
 const { authenticateUser } = require('../../middlewares/authorizedUser');
-const { getUnreadCount } = require('../../controllers/user/chatController');
+const { getUnreadCount } = require('../../controllers/user/ChatController');
+
 
 router.get('/dashboard-summary', authenticateUser, getDashboardSummary);
 router.get('/chat/unread-count', authenticateUser, getUnreadCount);

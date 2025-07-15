@@ -1,6 +1,3 @@
-// models/Booking.js (Updated with pickup/dropoff fields)
-
-// --- CHANGED: Use require instead of import ---
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
@@ -39,7 +36,6 @@ const BookingSchema = new Schema(
             type: Boolean,
             default: false
         },
-        // NEW FIELDS FOR PICKUP/DROPOFF
         requestedPickupDropoff: {
             type: Boolean,
             default: false
@@ -61,7 +57,7 @@ const BookingSchema = new Schema(
             lng: { type: Number }
         },
         pickupDropoffDistance: {
-            type: Number, // In kilometers
+            type: Number,
             default: 0
         },
         pickupDropoffCost: {
@@ -72,5 +68,4 @@ const BookingSchema = new Schema(
     { timestamps: true }
 );
 
-// --- CHANGED: Use module.exports instead of export default ---
 module.exports = mongoose.model("Booking", BookingSchema);
