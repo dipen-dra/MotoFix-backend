@@ -2,7 +2,7 @@ const Booking = require('../../models/Booking.js');
 const User = require('../../models/User.js');
 const sendEmail = require('../../utils/sendEmail.js');
 const puppeteer = require('puppeteer');
-const { getInvoiceHTML } = require('../../utils/invoiceTemplate.js');
+const getInvoiceHTML = require('../../utils/invoiceTemplate.js');
 
 const SUCCESS_ICON_URL = 'https://cdn.vectorstock.com/i/500p/20/36/3d-green-check-icon-tick-mark-symbol-vector-56142036.jpg';
 const CANCEL_ICON_URL = 'https://media.istockphoto.com/id/1132722548/vector/round-red-x-mark-line-icon-button-cross-symbol-on-white-background.jpg?s=612x612&w=0&k=20&c=QnHlhWesKpmbov2MFn2yAMg6oqDS8YXmC_iDsPK_BXQ=';
@@ -84,14 +84,24 @@ exports.updateBooking = async (req, res) => {
             }
         }
 
+        // --- START: CORRECTED LOGIC FOR COST CALCULATION ---
         if (totalCost !== undefined) {
-            booking.totalCost = totalCost;
-            if (booking.discountApplied) {
-                booking.finalAmount = totalCost - (totalCost * 0.20);
-            } else {
-                booking.finalAmount = totalCost;
-            }
+            // The `totalCost` from the form is the main SERVICE cost.
+            booking.totalCost = parseFloat(totalCost);
+
+            // Get the pickup cost from the booking document, defaulting to 0 if it doesn't exist.
+            const pickupCost = booking.pickupDropoffCost || 0;
+
+            // Calculate the discount amount. The discount is typically on the service cost.
+            const discountAmount = booking.discountApplied ? (booking.totalCost * 0.20) : 0;
+            
+            // Store the calculated discount amount for clarity on the invoice.
+            booking.discountAmount = discountAmount;
+            
+            // CORRECTLY calculate the final amount: (Service Cost + Pickup Cost) - Discount
+            booking.finalAmount = (booking.totalCost + pickupCost) - discountAmount;
         }
+        // --- END: CORRECTED LOGIC FOR COST CALCULATION ---
 
         await booking.save();
         
