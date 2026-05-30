@@ -2,6 +2,8 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const Service = require('./models/Service');
 const Workshop = require('./models/Workshop');
+const User = require('./models/User');
+const bcrypt = require('bcrypt');
 
 const services = [
   {
@@ -81,6 +83,38 @@ const seedDB = async () => {
     // Seed new workshop profile
     await Workshop.create(defaultWorkshop);
     console.log("Successfully seeded mock workshop profile!");
+
+    // Clear existing users
+    await User.deleteMany({});
+    console.log("Existing users cleared!");
+
+    // Hash passwords
+    const hashedPassword = await bcrypt.hash("password123", 10);
+
+    const users = [
+      {
+        fullName: "Workshop Manager (Admin)",
+        email: "admin@motofix.com",
+        password: hashedPassword,
+        role: "admin",
+        phone: "+977-9876543210",
+        address: "Gongabu, Kathmandu, Nepal",
+        loyaltyPoints: 0
+      },
+      {
+        fullName: "Dipendra Rider",
+        email: "user@motofix.com",
+        password: hashedPassword,
+        role: "normal",
+        phone: "+977-9801234567",
+        address: "Kathmandu, Nepal",
+        loyaltyPoints: 120
+      }
+    ];
+
+    // Seed users
+    await User.insertMany(users);
+    console.log("Successfully seeded mock users (Admin & Rider)!");
 
     mongoose.connection.close();
     console.log("Database connection closed cleanly.");
