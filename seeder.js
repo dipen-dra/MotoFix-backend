@@ -1,6 +1,7 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
 const Service = require('./models/Service');
+const Workshop = require('./models/Workshop');
 
 const services = [
   {
@@ -45,6 +46,16 @@ const services = [
   }
 ];
 
+const defaultWorkshop = {
+  ownerName: "Dipendra MotoFix",
+  workshopName: "MotoFix Premium Garage & Workshop",
+  email: "admin@motofix.com",
+  phone: "+977-9876543210",
+  address: "Gongabu, Ring Road, Kathmandu, Nepal",
+  offerPickupDropoff: true,
+  pickupDropoffChargePerKm: 50
+};
+
 const seedDB = async () => {
   try {
     const mongoURI = process.env.MONGODB_URI || "mongodb://localhost:27017/motofixdb";
@@ -62,6 +73,14 @@ const seedDB = async () => {
     // Seed new services
     await Service.insertMany(services);
     console.log("Successfully seeded mock services!");
+
+    // Clear existing workshops
+    await Workshop.deleteMany({});
+    console.log("Existing workshops cleared!");
+
+    // Seed new workshop profile
+    await Workshop.create(defaultWorkshop);
+    console.log("Successfully seeded mock workshop profile!");
 
     mongoose.connection.close();
     console.log("Database connection closed cleanly.");
