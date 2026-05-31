@@ -27,7 +27,7 @@ exports.getAllBookings = async (req, res) => {
 
         const bookingsAggregation = await Booking.aggregate([
             { $lookup: { from: 'users', localField: 'customer', foreignField: '_id', as: 'customer' } },
-            { $unwind: '$customer' },
+            { $unwind: { path: '$customer', preserveNullAndEmptyArrays: true } },
             { $match: matchQuery },
             { $sort: { createdAt: -1 } },
             { $facet: { metadata: [{ $count: 'totalItems' }], data: [{ $skip: skip }, { $limit: limit }] } }
