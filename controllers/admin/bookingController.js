@@ -14,7 +14,7 @@ exports.getAllBookings = async (req, res) => {
         const search = req.query.search || '';
         const skip = (page - 1) * limit;
 
-        const matchQuery = { isPaid: true, archivedByAdmin: { $ne: true } };
+        const matchQuery = { archivedByAdmin: { $ne: true } };
         if (search) {
             matchQuery.$or = [
                 { 'customer.fullName': { $regex: search, $options: 'i' } },

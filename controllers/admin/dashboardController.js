@@ -10,7 +10,7 @@ exports.getAnalytics = async (req, res) => {
             { $group: { _id: null, total: { $sum: "$finalAmount" } } }
         ]);
 
-        const totalBookings = await Booking.countDocuments({ isPaid: true });
+        const totalBookings = await Booking.countDocuments({ archivedByAdmin: { $ne: true } });
         
         const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
         const newUsers = await User.countDocuments({ createdAt: { $gte: startOfMonth } });
@@ -22,11 +22,11 @@ exports.getAnalytics = async (req, res) => {
         ]);
         
         const servicesData = await Booking.aggregate([
-             { $match: { isPaid: true } },
+             { $match: { archivedByAdmin: { $ne: true } } },
              { $group: { _id: '$serviceType', bookings: { $sum: 1 } } }
         ]);
         
-        const recentBookings = await Booking.find({ isPaid: true })
+        const recentBookings = await Booking.find({ archivedByAdmin: { $ne: true } })
             .sort({ createdAt: -1 })
             .limit(5)
             .populate('customer', 'fullName');
