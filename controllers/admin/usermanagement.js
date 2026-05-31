@@ -113,10 +113,14 @@ exports.updateOneUser = async (req, res) => {
 
 exports.deleteOneUser = async (req, res) => {
     try {
+        const Booking = require("../../models/Booking");
         const user = await User.findByIdAndDelete(req.params.id);
         if (!user) {
             return res.status(404).json({ success: false, message: "User not found." });
         }
+        // Cascade delete bookings belonging to this user
+        await Booking.deleteMany({ customer: req.params.id });
+
         res.status(200).json({ success: true, message: "User deleted successfully." });
     } catch (error) {
         res.status(500).json({ success: false, message: "Server error.", error: error.message });

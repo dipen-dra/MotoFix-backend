@@ -5,6 +5,10 @@ const User = require('../../models/User.js');
 
 exports.getAnalytics = async (req, res) => {
     try {
+        // Purge orphan bookings where customer user account no longer exists
+        const activeUserIds = await User.find().distinct('_id');
+        await Booking.deleteMany({ customer: { $nin: activeUserIds } });
+
         const totalRevenue = await Booking.aggregate([
             { $match: { status: 'Completed', isPaid: true } },
             { $group: { _id: null, total: { $sum: "$finalAmount" } } }

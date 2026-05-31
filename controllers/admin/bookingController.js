@@ -9,6 +9,10 @@ const CANCEL_ICON_URL = 'https://media.istockphoto.com/id/1132722548/vector/roun
 
 exports.getAllBookings = async (req, res) => {
     try {
+        // Purge orphan bookings where customer user account no longer exists
+        const activeUserIds = await User.find().distinct('_id');
+        await Booking.deleteMany({ customer: { $nin: activeUserIds } });
+
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 12;
         const search = req.query.search || '';
