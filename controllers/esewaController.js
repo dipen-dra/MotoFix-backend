@@ -73,19 +73,31 @@ const verifyEsewaPayment = async (req, res) => {
             return res.status(400).json({ success: false, message: `Payment not complete. Status: ${decodedData.status}` });
         }
 
+        const booking = await Booking.findById(decodedData.transaction_uuid).populate('customer', 'fullName email');
+        if (!booking) {
+            return res.status(404).json({ success: false, message: 'Booking not found after payment.' });
+        }
+        if (booking.isPaid) {
+            return res.status(200).json({ success: true, message: 'Payment was already verified.' });
+        }
+
+        // Prevent payment tampering by validating expected amount matches eSewa verified amount
+        const expectedAmount = parseFloat(booking.finalAmount);
+        const verifiedAmount = parseFloat(decodedData.total_amount);
+        if (Math.abs(verifiedAmount - expectedAmount) > 0.01) {
+            return res.status(400).json({ success: false, message: 'Payment tampering detected: Amount mismatch.' });
+        }
+
         const verificationUrl = `https://rc-epay.esewa.com.np/api/epay/transaction/status/?product_code=${decodedData.product_code}&total_amount=${decodedData.total_amount}&transaction_uuid=${decodedData.transaction_uuid}`;
 
         const response = await fetch(verificationUrl);
         const verificationResponse = await response.json();
 
         if (verificationResponse.status === 'COMPLETE') {
-            const booking = await Booking.findById(decodedData.transaction_uuid).populate('customer', 'fullName email');
-
-            if (!booking) {
-                return res.status(404).json({ success: false, message: 'Booking not found after payment.' });
-            }
-            if (booking.isPaid) {
-                return res.status(200).json({ success: true, message: 'Payment was already verified.' });
+            // Double check amount returned from eSewa verification API status check
+            const verifiedApiAmount = parseFloat(verificationResponse.total_amount);
+            if (Math.abs(verifiedApiAmount - expectedAmount) > 0.01) {
+                return res.status(400).json({ success: false, message: 'Payment tampering detected: Verified API amount mismatch.' });
             }
             
             const points = await awardLoyaltyPoints(booking.customer._id);

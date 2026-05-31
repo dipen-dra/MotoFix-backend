@@ -6,6 +6,25 @@ const nodemailer = require("nodemailer");
 /**
  * Registers a new user with a 'normal' role.
  */
+const validateStrongPassword = (password) => {
+    if (password.length < 8) {
+        return "Password must be at least 8 characters long.";
+    }
+    if (!/[A-Z]/.test(password)) {
+        return "Password must contain at least one uppercase letter.";
+    }
+    if (!/[a-z]/.test(password)) {
+        return "Password must contain at least one lowercase letter.";
+    }
+    if (!/[0-9]/.test(password)) {
+        return "Password must contain at least one number.";
+    }
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+        return "Password must contain at least one special character.";
+    }
+    return null;
+};
+
 exports.registerUser = async (req, res) => {
     const { email, fullName, password } = req.body;
 
@@ -13,6 +32,14 @@ exports.registerUser = async (req, res) => {
         return res.status(400).json({
             success: false,
             message: "Please fill all the fields",
+        });
+    }
+
+    const passwordError = validateStrongPassword(password);
+    if (passwordError) {
+        return res.status(400).json({
+            success: false,
+            message: passwordError
         });
     }
 
@@ -187,6 +214,14 @@ exports.resetPassword = async (req, res) => {
 
     if (!password) {
         return res.status(400).json({ success: false, message: "Password is required" });
+    }
+
+    const passwordError = validateStrongPassword(password);
+    if (passwordError) {
+        return res.status(400).json({
+            success: false,
+            message: passwordError
+        });
     }
 
     try {

@@ -345,6 +345,16 @@ const verifyKhaltiPayment = async (req, res) => {
     if (!token || !amount || !booking_id) return res.status(400).json({ success: false, message: 'Missing payment verification details.' });
 
     try {
+        const booking = await Booking.findById(booking_id).populate('customer', 'fullName email');
+        if (!booking) return res.status(404).json({ success: false, message: 'Booking not found after payment.' });
+        if (booking.isPaid) return res.status(400).json({ success: false, message: 'Booking is already paid.' });
+
+        // Prevent payment tampering by validating expected amount (in paisa) against the client value
+        const expectedAmountPaisa = Math.round(booking.finalAmount * 100);
+        if (parseInt(amount) !== expectedAmountPaisa) {
+            return res.status(400).json({ success: false, message: 'Payment verification failed: Amount mismatch.' });
+        }
+
         const khaltiResponse = await axios.post(
             'https://khalti.com/api/v2/payment/verify/',
             { token, amount }, 
@@ -352,9 +362,10 @@ const verifyKhaltiPayment = async (req, res) => {
         );
 
         if (khaltiResponse.data && khaltiResponse.data.idx) {
-            const booking = await Booking.findById(booking_id).populate('customer', 'fullName email');
-            if (!booking) return res.status(404).json({ success: false, message: 'Booking not found after payment.' });
-            if (booking.isPaid) return res.status(400).json({ success: false, message: 'Booking is already paid.' });
+            // Re-verify that verified amount returned from Khalti matches expected amount if present in response
+            if (khaltiResponse.data.amount && parseInt(khaltiResponse.data.amount) !== expectedAmountPaisa) {
+                return res.status(400).json({ success: false, message: 'Payment tampering detected: Verified amount mismatch.' });
+            }
 
             const points = await awardLoyaltyPoints(req.user.id);
 
