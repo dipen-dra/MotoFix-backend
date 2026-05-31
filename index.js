@@ -25,6 +25,7 @@ app.use(express.urlencoded({ extended: false }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // --- Routes ---
+app.get('/api/public/services', require('./controllers/user/serviceController').getAvailableServices);
 app.use('/api/auth', require('./routes/userRoute'));
 app.use('/api/admin/users', require('./routes/admin/adminUserRoute'));
 app.use('/api/admin/bookings', require('./routes/admin/bookingRoute'));
