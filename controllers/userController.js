@@ -127,9 +127,9 @@ exports.sendResetLink = async (req, res) => {
     try {
         const user = await User.findOne({ email });
         if (!user) {
-            return res.status(200).json({
-                success: true,
-                message: "If an account with that email exists, a reset link has been sent.",
+            return res.status(404).json({
+                success: false,
+                message: "User with this email does not exist.",
             });
         }
 
