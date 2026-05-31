@@ -34,10 +34,17 @@ const UserSchema = new Schema(
             type: String,
             default: ""
         },
-        // NEW FIELD
         loyaltyPoints: {
             type: Number,
             default: 0
+        },
+        passwordHistory: {
+            type: [String],
+            default: []
+        },
+        lastPasswordChange: {
+            type: Date,
+            default: Date.now
         }
     },
     { timestamps: true }

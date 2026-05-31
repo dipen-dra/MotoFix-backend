@@ -1,5 +1,6 @@
 const User = require("../../models/User");
 const bcrypt = require("bcrypt");
+const { escapeRegex } = require('../../middlewares/sanitizeRequest');
 
 
 exports.getUsers = async (req, res) => {
@@ -12,8 +13,8 @@ exports.getUsers = async (req, res) => {
         const query = search
             ? {
                 $or: [
-                    { fullName: { $regex: search, $options: 'i' } },
-                    { email: { $regex: search, $options: 'i' } }
+                    { fullName: { $regex: escapeRegex(search), $options: 'i' } },
+                    { email:    { $regex: escapeRegex(search), $options: 'i' } }
                 ]
             }
             : {};

@@ -11,6 +11,16 @@ const storage = multer.diskStorage(
     }
 )
 const fileFilter = (req, file, cb) => {
+    // 1. Prevent Null Byte Injection
+    if (file.originalname.indexOf('\0') !== -1) {
+        return cb(new Error('Malicious filename detected: Null Byte Injection.'), false);
+    }
+    
+    // 2. Double Extension Prevention
+    if (/\.(php|exe|sh|bat|js|html|py)\./i.test(file.originalname)) {
+        return cb(new Error('Double extension file upload attempt detected.'), false);
+    }
+
     const filetypes = /jpeg|jpg|png|gif|webp/;
     const ext = file.originalname.split(".").pop().toLowerCase();
     const extname = filetypes.test(ext);

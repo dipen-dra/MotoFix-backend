@@ -12,6 +12,16 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
+    // 1. Prevent Null Byte Injection
+    if (file.originalname.indexOf('\0') !== -1) {
+        return cb(new Error('Malicious filename detected: Null Byte Injection.'), false);
+    }
+    
+    // 2. Double Extension Prevention
+    if (/\.(php|exe|sh|bat|js|html|py)\./i.test(file.originalname)) {
+        return cb(new Error('Double extension file upload attempt detected.'), false);
+    }
+
     const filetypes = /jpeg|jpg|png|gif/;
     const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = filetypes.test(file.mimetype);
@@ -19,7 +29,7 @@ const fileFilter = (req, file, cb) => {
     if (mimetype && extname) {
         return cb(null, true);
     } else {
-        cb(new Error('Error: Images Only!'));
+        return cb(new Error('Error: Images Only!'), false);
     }
 };
 

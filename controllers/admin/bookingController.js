@@ -3,6 +3,7 @@ const User = require('../../models/User.js');
 const sendEmail = require('../../utils/sendEmail.js');
 const puppeteer = require('puppeteer');
 const getInvoiceHTML = require('../../utils/invoiceTemplate.js');
+const { escapeRegex } = require('../../middlewares/sanitizeRequest');
 
 const SUCCESS_ICON_URL = 'https://cdn.vectorstock.com/i/500p/20/36/3d-green-check-icon-tick-mark-symbol-vector-56142036.jpg';
 const CANCEL_ICON_URL = 'https://media.istockphoto.com/id/1132722548/vector/round-red-x-mark-line-icon-button-cross-symbol-on-white-background.jpg?s=612x612&w=0&k=20&c=QnHlhWesKpmbov2MFn2yAMg6oqDS8YXmC_iDsPK_BXQ=';
@@ -20,12 +21,13 @@ exports.getAllBookings = async (req, res) => {
 
         const matchQuery = { archivedByAdmin: { $ne: true } };
         if (search) {
+            const safeSearch = escapeRegex(search); // escape regex metacharacters + cap to 100 chars
             matchQuery.$or = [
-                { 'customer.fullName': { $regex: search, $options: 'i' } },
-                { 'serviceType': { $regex: search, $options: 'i' } },
-                { 'bikeModel': { $regex: search, $options: 'i' } },
-                { 'pickupAddress': { $regex: search, $options: 'i' } }, // Search by pickup address
-                { 'dropoffAddress': { $regex: search, $options: 'i' } }  // Search by dropoff address
+                { 'customer.fullName': { $regex: safeSearch, $options: 'i' } },
+                { 'serviceType':       { $regex: safeSearch, $options: 'i' } },
+                { 'bikeModel':         { $regex: safeSearch, $options: 'i' } },
+                { 'pickupAddress':     { $regex: safeSearch, $options: 'i' } },
+                { 'dropoffAddress':    { $regex: safeSearch, $options: 'i' } }
             ];
         }
 

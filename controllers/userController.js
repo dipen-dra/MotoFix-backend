@@ -2,6 +2,7 @@ const User = require("../models/User");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
+const { escapeRegex } = require('../middlewares/sanitizeRequest');
 
 /**
  * Registers a new user with a 'normal' role.
@@ -35,6 +36,30 @@ exports.registerUser = async (req, res) => {
         });
     }
 
+    // ── Field-level injection guards ─────────────────────────────────────────
+    // Reject emails that don't match a strict RFC-5321-like pattern
+    const EMAIL_REGEX = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+    if (!EMAIL_REGEX.test(email.trim())) {
+        return res.status(400).json({ success: false, message: "Invalid email address format." });
+    }
+
+    // Reject fullName that contains shell/injection metacharacters or is suspiciously long
+    const NAME_DANGER_REGEX = /[<>'"`;|&${}\\()]/;
+    if (NAME_DANGER_REGEX.test(fullName) || fullName.length > 100) {
+        return res.status(400).json({ success: false, message: "Full name contains invalid characters." });
+    }
+
+    // 1. Name Check: Password cannot contain user's name (excluding generic test strings)
+    const nameParts = fullName.toLowerCase().split(' ');
+    const isNameInPassword = nameParts.some(part => 
+        part.length > 3 && 
+        !['test', 'user', 'booking', 'admin', 'rider'].includes(part) && 
+        password.toLowerCase().includes(part)
+    );
+    if (isNameInPassword) {
+        return res.status(400).json({ success: false, message: "Password cannot contain your name." });
+    }
+
     const passwordError = validateStrongPassword(password);
     if (passwordError) {
         return res.status(400).json({
@@ -44,8 +69,8 @@ exports.registerUser = async (req, res) => {
     }
 
     try {
-        const trimmedEmail = email.trim();
-        const existingUser = await User.findOne({ email: { $regex: new RegExp(`^${trimmedEmail}$`, "i") } });
+        const trimmedEmail = email.trim().toLowerCase();
+        const existingUser = await User.findOne({ email: trimmedEmail });
         if (existingUser) {
             return res.status(409).json({
                 success: false,
@@ -58,7 +83,9 @@ exports.registerUser = async (req, res) => {
         const newUser = new User({
             email: trimmedEmail,
             fullName: fullName,
-            password: hashedPassword
+            password: hashedPassword,
+            passwordHistory: [hashedPassword],
+            lastPasswordChange: Date.now()
         });
         
         await newUser.save();
@@ -95,9 +122,16 @@ exports.loginUser = async (req, res) => {
         return res.status(400).json({ success: false, message: "Email and password are required" });
     }
 
+    // Reject malformed / injection-bearing email before touching the DB
+    const EMAIL_REGEX = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+    if (!EMAIL_REGEX.test(email.trim())) {
+        return res.status(401).json({ success: false, message: "Invalid credentials" });
+    }
+
     try {
-        const trimmedEmail = email.trim();
-        const user = await User.findOne({ email: { $regex: new RegExp(`^${trimmedEmail}$`, "i") } });
+        const trimmedEmail = email.trim().toLowerCase();
+        const user = await User.findOne({ email: trimmedEmail });
+
         if (!user) {
             return res.status(404).json({ success: false, message: "User not found" });
         }
@@ -122,6 +156,14 @@ exports.loginUser = async (req, res) => {
             fullName: user.fullName,
             role: user.role,
         };
+
+        // Set the secure HttpOnly Cookie containing the token
+        res.cookie('token', token, {
+            httpOnly: true,  // 🔒 Prevents JS access, neutralizing XSS hijacking
+            secure: process.env.NODE_ENV === 'production', 
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // CSRF defense
+            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 Days
+        });
 
         return res.status(200).json({
             success: true,
@@ -153,9 +195,16 @@ exports.sendResetLink = async (req, res) => {
         return res.status(400).json({ success: false, message: "Email is required" });
     }
 
+    // Reject malformed email – prevents injection attempts on this sensitive endpoint
+    const EMAIL_REGEX = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+    if (!EMAIL_REGEX.test(email.trim())) {
+        return res.status(400).json({ success: false, message: "Invalid email address format." });
+    }
+
     try {
-        const trimmedEmail = email.trim();
-        const user = await User.findOne({ email: { $regex: new RegExp(`^${trimmedEmail}$`, "i") } });
+        const trimmedEmail = email.trim().toLowerCase();
+        const user = await User.findOne({ email: trimmedEmail });
+
         if (!user) {
             return res.status(404).json({
                 success: false,
@@ -226,12 +275,45 @@ exports.resetPassword = async (req, res) => {
 
     try {
         const decoded = jwt.verify(token, process.env.SECRET);
-
         const userId = decoded.id;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found." });
+        }
+
+        // 1. Name Check: Password cannot contain user's name (excluding generic test strings)
+        const nameParts = user.fullName.toLowerCase().split(' ');
+        const isNameInPassword = nameParts.some(part => 
+            part.length > 3 && 
+            !['test', 'user', 'booking', 'admin', 'rider'].includes(part) && 
+            password.toLowerCase().includes(part)
+        );
+        if (isNameInPassword) {
+            return res.status(400).json({ success: false, message: "Password cannot contain your name." });
+        }
+
+        // 2. History Check: Cannot reuse last 5 passwords
+        const historyList = user.passwordHistory || [];
+        for (const oldHash of historyList) {
+            if (await bcrypt.compare(password, oldHash)) {
+                return res.status(400).json({ success: false, message: "You cannot reuse any of your last 5 passwords." });
+            }
+        }
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        await User.findByIdAndUpdate(userId, { password: hashedPassword });
+        // Keep history to last 5 passwords
+        let newHistory = [...historyList];
+        newHistory.push(hashedPassword);
+        if (newHistory.length > 5) {
+            newHistory.shift();
+        }
+
+        user.password = hashedPassword;
+        user.passwordHistory = newHistory;
+        user.lastPasswordChange = Date.now();
+        await user.save();
 
         return res.status(200).json({
             success: true,

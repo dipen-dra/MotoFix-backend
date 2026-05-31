@@ -3,11 +3,15 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const cookieParser = require('cookie-parser');
+const hpp = require('hpp');
+const mongoSanitize = require('express-mongo-sanitize');
 const path = require('path');
 const http = require('http');
 const { Server } = require("socket.io");
 const connectDB = require('./config/db');
 const Message = require('./models/Message');
+const { sanitizeRequest } = require('./middlewares/sanitizeRequest');
 
 const app = express();
 const server = http.createServer(app); 
@@ -61,27 +65,55 @@ const authLimiter = rateLimit({
 app.use(globalLimiter);
 app.use('/api/auth', authLimiter);
 
-// 4. Recursive Anti-XSS Sanitizer Middleware (strips HTML and script tags)
-const sanitizeInput = (obj) => {
-    if (typeof obj !== 'object' || obj === null) return obj;
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
+app.use(cookieParser());
+app.use(hpp());
+
+// 4a. NoSQL / MongoDB Operator Injection Prevention
+//     express-mongo-sanitize removes keys that start with `$` or contain `.`
+//     from req.body, req.query, and req.params before they reach any handler.
+app.use(mongoSanitize({
+    replaceWith: '_',        // replace `$` with `_` instead of deleting (safer for logging)
+    allowDots: false,        // also strip dotted-key injection
+    onSanitizeRequest: (req) => {
+        const logger = require('./utils/logger');
+        logger.warn('NoSQL operator injection attempt detected', {
+            ip: req.ip,
+            url: req.originalUrl,
+            method: req.method
+        });
+    }
+}));
+
+// 4b. Deep Injection Sanitizer: Shell command injection, embedded operator
+//     values, shell meta-characters, path traversal sequences, and CRLF.
+//     Also caps $regex search strings to 100 chars (ReDoS prevention).
+app.use(sanitizeRequest);
+
+// 4c. Recursive Anti-XSS Sanitizer (strips HTML / script tags)
+const sanitizeXSS = (obj) => {
+    if (typeof obj !== 'object' || obj === null) return;
     for (let key in obj) {
         if (typeof obj[key] === 'string') {
             obj[key] = obj[key].replace(/<[^>]*>/g, '');
         } else if (typeof obj[key] === 'object') {
-            sanitizeInput(obj[key]);
+            sanitizeXSS(obj[key]);
         }
     }
 };
 app.use((req, res, next) => {
-    if (req.body) {
-        sanitizeInput(req.body);
-    }
+    if (req.body)  sanitizeXSS(req.body);
+    if (req.query) sanitizeXSS(req.query);
     next();
 });
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+// Register request and completion logger middleware
+const requestLogger = require('./middlewares/requestLogger');
+app.use(requestLogger);
+
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 
 // --- Routes ---
 app.get('/api/public/services', require('./controllers/user/serviceController').getAvailableServices);
@@ -160,6 +192,16 @@ app.use((req, res, next) => {
 
 app.use((err, req, res, next) => {
     const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
+    
+    // Log internal error using Winston logger
+    const logger = require('./utils/logger');
+    logger.error(`Critical Server Error: ${err.message}`, {
+        url: req.originalUrl || req.url,
+        method: req.method,
+        statusCode,
+        stack: err.stack
+    });
+
     res.status(statusCode).json({
         message: err.message,
         stack: process.env.NODE_ENV === 'production' ? '🥞' : err.stack,
