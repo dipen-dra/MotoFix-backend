@@ -1,6 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const path = require('path');
 const http = require('http');
 const { Server } = require("socket.io");
@@ -19,7 +21,64 @@ const io = new Server(server, {
 });
 
 app.set('socketio', io);
-app.use(cors());
+
+// 1. Secure HTTP Headers (Helmet) with cross-origin assets friendly policies
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    contentSecurityPolicy: false,
+}));
+
+// 2. Strict CORS Whitelisting
+const allowedOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173'];
+const corsOptions = {
+    origin: function (origin, callback) {
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) !== -1) {
+            return callback(null, true);
+        } else {
+            return callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true
+};
+app.use(cors(corsOptions));
+
+// 3. Global and Auth IP Rate Limiters
+const globalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 200, // 200 requests per IP per window
+    message: { success: false, message: 'Too many requests from this IP, please try again after 15 minutes.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 15, // 15 login/register/forgot-pass attempts per IP per window
+    message: { success: false, message: 'Too many authentication attempts from this IP, please try again after 15 minutes.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+app.use(globalLimiter);
+app.use('/api/auth', authLimiter);
+
+// 4. Recursive Anti-XSS Sanitizer Middleware (strips HTML and script tags)
+const sanitizeInput = (obj) => {
+    if (typeof obj !== 'object' || obj === null) return obj;
+    for (let key in obj) {
+        if (typeof obj[key] === 'string') {
+            obj[key] = obj[key].replace(/<[^>]*>/g, '');
+        } else if (typeof obj[key] === 'object') {
+            sanitizeInput(obj[key]);
+        }
+    }
+};
+app.use((req, res, next) => {
+    if (req.body) {
+        sanitizeInput(req.body);
+    }
+    next();
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

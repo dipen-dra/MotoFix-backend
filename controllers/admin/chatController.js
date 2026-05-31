@@ -19,7 +19,40 @@ const storage = multer.diskStorage({
     }
 });
 
-const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } }).single('file');
+const fileFilter = (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    
+    // Whitelist safe extensions and explicitly blacklist executable or script extensions
+    const blockedExtensions = [
+        '.exe', '.dll', '.bat', '.cmd', '.sh', '.py', '.js', '.php', '.jsp', 
+        '.html', '.htm', '.xml', '.css', '.svg', '.jar', '.pl', '.cgi',
+        '.shtml', '.phtml', '.php3', '.php4', '.php5', '.phps', '.htaccess'
+    ];
+    
+    if (blockedExtensions.includes(ext)) {
+        return cb(new Error('File extension is not allowed due to security restrictions.'), false);
+    }
+    
+    // Explicitly blacklist active or script-based MIME types
+    const blockedMimeTypes = [
+        'text/html', 'text/javascript', 'application/javascript', 
+        'application/x-javascript', 'text/xml', 'text/css', 
+        'image/svg+xml', 'application/x-sh', 'application/x-msdownload', 
+        'application/x-httpd-php'
+    ];
+    
+    if (blockedMimeTypes.includes(file.mimetype.toLowerCase())) {
+        return cb(new Error('File type is not allowed due to security restrictions.'), false);
+    }
+    
+    cb(null, true);
+};
+
+const upload = multer({ 
+    storage, 
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter
+}).single('file');
 
 
 const uploadChatFile = (req, res) => {
