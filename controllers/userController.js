@@ -17,7 +17,8 @@ exports.registerUser = async (req, res) => {
     }
 
     try {
-        const existingUser = await User.findOne({ email: email });
+        const trimmedEmail = email.trim();
+        const existingUser = await User.findOne({ email: { $regex: new RegExp(`^${trimmedEmail}$`, "i") } });
         if (existingUser) {
             return res.status(409).json({
                 success: false,
@@ -28,7 +29,7 @@ exports.registerUser = async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
 
         const newUser = new User({
-            email: email,
+            email: trimmedEmail,
             fullName: fullName,
             password: hashedPassword
         });
@@ -68,7 +69,8 @@ exports.loginUser = async (req, res) => {
     }
 
     try {
-        const user = await User.findOne({ email: email });
+        const trimmedEmail = email.trim();
+        const user = await User.findOne({ email: { $regex: new RegExp(`^${trimmedEmail}$`, "i") } });
         if (!user) {
             return res.status(404).json({ success: false, message: "User not found" });
         }
@@ -125,7 +127,8 @@ exports.sendResetLink = async (req, res) => {
     }
 
     try {
-        const user = await User.findOne({ email });
+        const trimmedEmail = email.trim();
+        const user = await User.findOne({ email: { $regex: new RegExp(`^${trimmedEmail}$`, "i") } });
         if (!user) {
             return res.status(404).json({
                 success: false,
